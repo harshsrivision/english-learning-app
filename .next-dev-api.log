@@ -1,0 +1,5 @@
+
+> english-learning-app@1.0.0 dev:api
+> tsx watch server/index.ts
+
+Bolo English API listening on http://localhost:4000

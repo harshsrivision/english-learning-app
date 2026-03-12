@@ -1,0 +1,10 @@
+
+> english-learning-app@1.0.0 dev:web
+> next dev
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3001
+   - Network:      http://10.227.45.201:3001
+   - Environments: .env
+
+ ✓ Starting...
