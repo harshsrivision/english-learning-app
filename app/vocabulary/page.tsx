@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/section-title";
+import { getApiUrl } from "@/lib/api";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 type VocabularyWord = {
@@ -16,10 +17,6 @@ type VocabularyProgressResponse = {
   correctCount?: number;
   error?: string;
 };
-
-const vocabularyApiUrl = process.env.NEXT_PUBLIC_VOCABULARY_API_URL ?? "http://localhost:4000/vocabulary";
-const vocabularyProgressApiUrl =
-  process.env.NEXT_PUBLIC_VOCABULARY_PROGRESS_API_URL ?? "http://localhost:4000/vocabulary-progress";
 
 export default function VocabularyPage() {
   const { userId, isChecking } = useRequiredUserId();
@@ -37,7 +34,7 @@ export default function VocabularyPage() {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(vocabularyApiUrl);
+        const response = await fetch(getApiUrl("vocabulary"));
         const data = (await response.json()) as VocabularyWord[] | { error?: string };
 
         if (!response.ok || !Array.isArray(data)) {
@@ -86,7 +83,7 @@ export default function VocabularyPage() {
     setError(null);
 
     try {
-      const response = await fetch(vocabularyProgressApiUrl, {
+      const response = await fetch(getApiUrl("vocabularyProgress"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

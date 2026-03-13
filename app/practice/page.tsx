@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiUrl } from "@/lib/api";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 type DailyProgressResponse = {
@@ -10,8 +11,6 @@ type DailyProgressResponse = {
   lessons_completed?: number;
   error?: string;
 };
-
-const dailyProgressApiUrl = process.env.NEXT_PUBLIC_DAILY_PROGRESS_API_URL ?? "http://localhost:4000/daily-progress";
 
 export default function PracticePage() {
   const { userId: activeUserId, isChecking } = useRequiredUserId();
@@ -38,6 +37,7 @@ export default function PracticePage() {
 
     async function loadCurrentProgress() {
       try {
+        const dailyProgressApiUrl = getApiUrl("dailyProgress");
         const response = await fetch(`${dailyProgressApiUrl}/${activeUserId}`);
         const data = (await response.json()) as DailyProgressResponse;
 
@@ -126,7 +126,7 @@ export default function PracticePage() {
     }
 
     try {
-      const response = await fetch(dailyProgressApiUrl, {
+      const response = await fetch(getApiUrl("dailyProgress"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

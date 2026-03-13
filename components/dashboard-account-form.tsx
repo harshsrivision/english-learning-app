@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { getApiUrl } from "@/lib/api";
 import { storeUserId } from "@/lib/user-session";
 
 type CreateUserResponse = {
   userId?: number;
   error?: string;
 };
-
-const signupApiUrl = process.env.NEXT_PUBLIC_SIGNUP_API_URL ?? "http://localhost:4000/signup";
 
 export function DashboardAccountForm() {
   const [name, setName] = useState("");
@@ -32,7 +31,7 @@ export function DashboardAccountForm() {
     setError(null);
 
     try {
-      const response = await fetch(signupApiUrl, {
+      const response = await fetch(getApiUrl("signup"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

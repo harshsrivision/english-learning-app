@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getApiUrl } from "@/lib/api";
 
 type Level = "beginner" | "intermediate" | "advanced" | "professional";
 type RecordingState = "idle" | "recording" | "processing";
@@ -121,11 +122,6 @@ const practiceScenarios = [
 ] as const satisfies ReadonlyArray<PracticeScenario>;
 
 const fillerWords = new Set(["um", "uh", "like", "actually", "basically"]);
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
-const analyzeApiUrl = process.env.NEXT_PUBLIC_ANALYZE_API_URL ?? "http://localhost:4000/analyze";
-const correctionApiUrl = process.env.NEXT_PUBLIC_CORRECTION_API_URL ?? "http://localhost:4000/correct";
-const dailyProgressApiUrl = process.env.NEXT_PUBLIC_DAILY_PROGRESS_API_URL ?? "http://localhost:4000/daily-progress";
-const pronunciationApiUrl = process.env.NEXT_PUBLIC_PRONUNCIATION_API_URL ?? "http://localhost:4000/pronunciation";
 
 type SpeakingPracticeProps = {
   userId: number;
@@ -225,7 +221,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function sendSentence(sentence: string) {
     try {
-      const response = await fetch(correctionApiUrl, {
+      const response = await fetch(getApiUrl("correction"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -248,7 +244,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function checkPronunciation(sentence: string) {
     try {
-      const response = await fetch(pronunciationApiUrl, {
+      const response = await fetch(getApiUrl("pronunciation"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -274,7 +270,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function analyzeSpeech(sentence: string) {
     try {
-      const response = await fetch(analyzeApiUrl, {
+      const response = await fetch(getApiUrl("analyze"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -304,6 +300,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function fetchSpeakingSession(sentence: string) {
     try {
+      const apiBaseUrl = getApiUrl("apiBase");
       const response = await fetch(`${apiBaseUrl}/speaking/session`, {
         method: "POST",
         headers: {
@@ -329,6 +326,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function fetchPronunciationReview(sentence: string) {
     try {
+      const apiBaseUrl = getApiUrl("apiBase");
       const response = await fetch(`${apiBaseUrl}/pronunciation/analyze`, {
         method: "POST",
         headers: {
@@ -352,7 +350,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function saveSpokenSentenceProgress() {
     try {
-      const response = await fetch(dailyProgressApiUrl, {
+      const response = await fetch(getApiUrl("dailyProgress"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

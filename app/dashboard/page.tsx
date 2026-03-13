@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/section-title";
+import { getApiUrl } from "@/lib/api";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 import { learnerSnapshot, lessons, recentActivities, skillProgress, weeklyGoals } from "@/lib/mock-data";
 
@@ -14,8 +15,6 @@ type DailyProgress = {
   total_vocabulary_learned?: number;
   error?: string;
 };
-
-const dailyProgressApiUrl = process.env.NEXT_PUBLIC_DAILY_PROGRESS_API_URL ?? "http://localhost:4000/daily-progress";
 
 export default function DashboardPage() {
   const { userId, isChecking } = useRequiredUserId();
@@ -33,6 +32,7 @@ export default function DashboardPage() {
       try {
         setProgressError(null);
 
+        const dailyProgressApiUrl = getApiUrl("dailyProgress");
         const response = await fetch(`${dailyProgressApiUrl}/${userId}`);
         const data = (await response.json()) as DailyProgress;
 

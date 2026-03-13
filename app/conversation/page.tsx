@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getApiUrl } from "@/lib/api";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 type Message = {
@@ -13,8 +14,6 @@ type ChatResponse = {
   reply?: string;
   error?: string;
 };
-
-const chatApiUrl = process.env.NEXT_PUBLIC_CONVERSATION_API_URL ?? "http://localhost:4000/chat";
 
 export default function ConversationPage() {
   const { userId, isChecking } = useRequiredUserId();
@@ -42,7 +41,7 @@ export default function ConversationPage() {
     setError(null);
 
     try {
-      const response = await fetch(chatApiUrl, {
+      const response = await fetch(getApiUrl("conversation"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

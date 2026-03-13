@@ -3,14 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"tsx watch server/index.ts\"",
-    "dev:web": "next dev",
-    "dev:api": "tsx watch server/index.ts",
-    "build": "next build",
-    "start": "next start",
-    "start:api": "node dist/server/index.js",
-    "lint": "next lint"
-  },
+  "start": "tsx server/index.ts",
+  "dev": "concurrently \"next dev\" \"tsx watch server/index.ts\"",
+  "dev:web": "next dev",
+  "dev:api": "tsx watch server/index.ts",
+  "build": "next build",
+  "lint": "next lint"
+}
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

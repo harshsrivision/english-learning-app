@@ -4,14 +4,13 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { getApiUrl } from "@/lib/api";
 import { getStoredUserId, storeUserId } from "@/lib/user-session";
 
 type LoginResponse = {
   userId?: number;
   error?: string;
 };
-
-const loginApiUrl = process.env.NEXT_PUBLIC_LOGIN_API_URL ?? "http://localhost:4000/login";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -38,7 +37,7 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const response = await fetch(loginApiUrl, {
+      const response = await fetch(getApiUrl("login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

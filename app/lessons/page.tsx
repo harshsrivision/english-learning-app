@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getApiUrl } from "@/lib/api";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 type Lesson = {
@@ -89,11 +90,6 @@ function getNextUnlockedLessonId(lessonList: Lesson[], completedIds: number[]) {
   return nextIncompleteLesson?.id ?? lessonList[0]?.id ?? null;
 }
 
-const lessonsApiUrl = process.env.NEXT_PUBLIC_LESSONS_API_URL ?? "http://localhost:4000/lessons";
-const lessonProgressApiUrl = process.env.NEXT_PUBLIC_LESSON_PROGRESS_API_URL ?? "http://localhost:4000/lesson-progress";
-const analyzeApiUrl = process.env.NEXT_PUBLIC_ANALYZE_API_URL ?? "http://localhost:4000/analyze";
-const dailyProgressApiUrl = process.env.NEXT_PUBLIC_DAILY_PROGRESS_API_URL ?? "http://localhost:4000/daily-progress";
-
 export default function LessonsPage() {
   const { isChecking, userId } = useRequiredUserId();
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -142,6 +138,8 @@ export default function LessonsPage() {
         setIsLoading(true);
         setError(null);
 
+        const lessonsApiUrl = getApiUrl("lessons");
+        const lessonProgressApiUrl = getApiUrl("lessonProgress");
         const [lessonResponse, progressResponse] = await Promise.all([fetch(lessonsApiUrl), fetch(`${lessonProgressApiUrl}/${userId}`)]);
 
         const lessonData = (await lessonResponse.json()) as Lesson[] | { error?: string };
@@ -327,7 +325,7 @@ export default function LessonsPage() {
     setStatusMessage(null);
 
     try {
-      const analysisResponse = await fetch(analyzeApiUrl, {
+      const analysisResponse = await fetch(getApiUrl("analyze"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -348,7 +346,7 @@ export default function LessonsPage() {
         throw new Error(analysisData.error ?? "Lesson analysis failed.");
       }
 
-      const progressResponse = await fetch(dailyProgressApiUrl, {
+      const progressResponse = await fetch(getApiUrl("dailyProgress"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -392,7 +390,7 @@ export default function LessonsPage() {
     setStatusMessage(null);
 
     try {
-      const completionResponse = await fetch(lessonProgressApiUrl, {
+      const completionResponse = await fetch(getApiUrl("lessonProgress"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

@@ -36,6 +36,22 @@ npm run dev
 Frontend runs on `http://localhost:3000`.
 API runs on `http://localhost:4000`.
 
+## Frontend API Configuration
+
+The frontend uses `NEXT_PUBLIC_API_ORIGIN` as the shared backend origin in production. For local development:
+
+```bash
+NEXT_PUBLIC_API_ORIGIN=http://localhost:4000
+```
+
+For a deployed frontend, set `NEXT_PUBLIC_API_ORIGIN` to your deployed API host, for example:
+
+```bash
+NEXT_PUBLIC_API_ORIGIN=https://english-api-production.up.railway.app
+```
+
+You can still override individual endpoints with the more specific `NEXT_PUBLIC_*_API_URL` variables in `.env.example`, but the frontend no longer falls back to `localhost` in production when those values are missing.
+
 ## Database
 
 1. Create a PostgreSQL database named `bolo_english`.
