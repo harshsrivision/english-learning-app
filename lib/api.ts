@@ -1,7 +1,5 @@
 "use client";
 
-const developmentApiOrigin = "http://localhost:4000";
-
 const endpointOverrides = {
   analyze: process.env.NEXT_PUBLIC_ANALYZE_API_URL,
   apiBase: process.env.NEXT_PUBLIC_API_BASE_URL,
@@ -57,17 +55,17 @@ function trimTrailingSlash(value: string) {
 }
 
 function getApiOrigin() {
-  const configuredOrigin = process.env.NEXT_PUBLIC_API_ORIGIN?.trim();
+  const configuredOrigin =
+    process.env.NEXT_PUBLIC_API_URL?.trim() ??
+    process.env.NEXT_PUBLIC_API_ORIGIN?.trim();
 
   if (configuredOrigin) {
     return trimTrailingSlash(configuredOrigin);
   }
 
-  if (process.env.NODE_ENV === "development") {
-    return developmentApiOrigin;
-  }
-
-  return null;
+  throw new Error(
+    "API is not configured. Set NEXT_PUBLIC_API_URL to your deployed backend URL."
+  );
 }
 
 export function getApiUrl(endpoint: ApiEndpointKey) {
@@ -79,11 +77,22 @@ export function getApiUrl(endpoint: ApiEndpointKey) {
 
   const apiOrigin = getApiOrigin();
 
-  if (!apiOrigin) {
-    throw new Error(
-      `API is not configured for production. Set NEXT_PUBLIC_API_ORIGIN or ${endpointEnvKeys[endpoint]} to your deployed backend URL.`
-    );
+  return `${apiOrigin}${endpointPaths[endpoint]}`;
+}
+export async function correctSentence(sentence: string) {
+  const url = getApiUrl("correction");
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ sentence })
+  });
+
+  if (!res.ok) {
+    throw new Error("Correction request failed");
   }
 
-  return `${apiOrigin}${endpointPaths[endpoint]}`;
+  return res.json();
 }

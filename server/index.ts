@@ -12,9 +12,17 @@ import { apiRouter } from "./routes";
 dotenv.config();
 
 const app = express();
-const port = Number(process.env.API_PORT ?? 4000);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 
-app.use(cors());
+const allowedOrigins = process.env.CLIENT_ORIGINS?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (allowedOrigins?.length) {
+  app.use(cors({ origin: allowedOrigins }));
+} else {
+  app.use(cors());
+}
 app.use(express.json());
 
 type DailyProgressCounts = {
@@ -543,7 +551,7 @@ async function bootstrap() {
   app.use("/api", apiRouter);
 
   app.listen(port, () => {
-    console.log(`Bolo English API listening on http://localhost:${port}`);
+    console.log(`Bolo English API listening on port ${port}`);
   });
 }
 
@@ -552,3 +560,6 @@ void bootstrap().catch((error) => {
   console.error(message);
   process.exit(1);
 });
+
+
+
