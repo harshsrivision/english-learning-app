@@ -3,11 +3,8 @@
     "version":  "1.0.0",
     "description":  "",
     "main":  "index.js",
-    "scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "lint": "next lint"
+   "scripts": {
+  "start": "npx ts-node index.ts"
 },
 "dependencies": {
                          "@types/express":  "^5.0.6",
