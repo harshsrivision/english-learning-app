@@ -80,6 +80,7 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
           </label>
           <input
             id="vocabulary-search"
+            aria-label="Search vocabulary words or Hindi meanings"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search: schedule, parinam, polite..."
@@ -93,6 +94,8 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
                 <button
                   key={category}
                   type="button"
+                  aria-label={`Filter vocabulary by category ${category}`}
+                  aria-pressed={selectedCategory === category}
                   onClick={() => setSelectedCategory(category)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold ${
                     selectedCategory === category ? "bg-teal text-white" : "bg-sand text-ink hover:bg-white"
@@ -111,6 +114,8 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
                 <button
                   key={level}
                   type="button"
+                  aria-label={`Filter vocabulary by level ${level}`}
+                  aria-pressed={selectedLevel === level}
                   onClick={() => setSelectedLevel(level)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold ${
                     selectedLevel === level ? "bg-clay text-white" : "bg-sand text-ink hover:bg-white"
@@ -192,6 +197,7 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button
                     type="button"
+                    aria-label={`${isRevealed ? "Hide" : "Reveal"} Hindi meaning for ${term.english}`}
                     onClick={() => setRevealedCardId(isRevealed ? null : term.id)}
                     className="rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-ink hover:border-teal hover:text-teal"
                   >
@@ -199,6 +205,7 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
                   </button>
                   <button
                     type="button"
+                    aria-label={`Mark ${term.english} as learning`}
                     onClick={() => setStatus(term.id, "learning")}
                     className="rounded-full bg-clay px-4 py-2 text-sm font-semibold text-white hover:bg-clay/90"
                   >
@@ -206,6 +213,7 @@ export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
                   </button>
                   <button
                     type="button"
+                    aria-label={`Mark ${term.english} as mastered`}
                     onClick={() => setStatus(term.id, "mastered")}
                     className="rounded-full bg-teal px-4 py-2 text-sm font-semibold text-white hover:bg-teal/90"
                   >

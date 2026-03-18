@@ -3,11 +3,11 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { SectionHeading } from "@/components/section-heading";
-import { readLearnerProgress } from "@/lib/local-progress";
+import { getCurrentCefrLevel, readLearnerProgress } from "@/lib/local-progress";
 
 type Badge = {
   id: string;
-  emoji: string;
+  mark: string;
   name: string;
   description: string;
   hindiHint: string;
@@ -16,109 +16,106 @@ type Badge = {
 
 const allBadges: Badge[] = [
   {
-    id: "first-word",
-    emoji: "🌱",
-    name: "First Word",
-    description: "Completed your very first lesson",
-    hindiHint: "Pehla kadam sabse mushkil hota hai",
-    howToEarn: "Complete your first lesson",
+    id: "starter-spark",
+    mark: "SP",
+    name: "Starter Spark",
+    description: "Completed your first tracked lesson or daily milestone.",
+    hindiHint: "Pehla kadam sabse mushkil hota hai.",
+    howToEarn: "Complete your first lesson or first tracked study block."
   },
   {
-    id: "alphabet-hero",
-    emoji: "🔤",
-    name: "Alphabet Hero",
-    description: "Mastered the English alphabet",
-    hindiHint: "A se Z tak — ab koi rok nahi",
-    howToEarn: "Complete the Alphabet module",
+    id: "mic-friend",
+    mark: "MIC",
+    name: "Mic Friend",
+    description: "Logged your first meaningful speaking practice.",
+    hindiHint: "Mic khul gaya to confidence build hona start ho gaya.",
+    howToEarn: "Reach at least 5 minutes of total speaking practice."
   },
   {
     id: "100-words",
-    emoji: "📖",
+    mark: "100",
     name: "100 Words",
-    description: "Learned your first 100 vocabulary words",
-    hindiHint: "Vocabulary hi confidence ki neenv hai",
-    howToEarn: "Reach 100 vocabulary words",
+    description: "Learned your first 100 vocabulary words.",
+    hindiHint: "Vocabulary hi confidence ki neev hai.",
+    howToEarn: "Reach 100 vocabulary words."
   },
   {
     id: "first-conversation",
-    emoji: "💬",
+    mark: "CHAT",
     name: "First Conversation",
-    description: "Completed your first AI roleplay simulation",
-    hindiHint: "Baat shuru karni aani chahiye",
-    howToEarn: "Complete any simulation scenario",
+    description: "Completed your first AI roleplay or conversation simulation.",
+    hindiHint: "Baat shuru karni aani chahiye.",
+    howToEarn: "Complete any simulation scenario or roleplay."
   },
   {
     id: "3-day-streak",
-    emoji: "🔥",
+    mark: "3D",
     name: "3-Day Streak",
-    description: "Practiced 3 days in a row",
-    hindiHint: "Teen din ka streak — adat ban rahi hai",
-    howToEarn: "Log in and practice 3 consecutive days",
+    description: "Practiced 3 days in a row.",
+    hindiHint: "Teen din ka streak adat banana start karta hai.",
+    howToEarn: "Practice on 3 consecutive days."
   },
   {
     id: "week-warrior",
-    emoji: "⚡",
+    mark: "7D",
     name: "Week Warrior",
-    description: "Maintained a 7-day streak",
-    hindiHint: "Ek poora hapta bina ruke — yahi consistency hai",
-    howToEarn: "Maintain a 7-day streak",
+    description: "Maintained a 7-day streak.",
+    hindiHint: "Ek poora hafta bina ruke jana badi baat hoti hai.",
+    howToEarn: "Maintain a 7-day streak."
   },
   {
     id: "grammar-star",
-    emoji: "✨",
+    mark: "GRAM",
     name: "Grammar Star",
-    description: "Scored 100% on 5 grammar quizzes in a row",
-    hindiHint: "Grammar mein koi galti nahi — bilkul perfect",
-    howToEarn: "Score 100% on 5 consecutive grammar quizzes",
+    description: "Stayed consistent with grammar-focused practice.",
+    hindiHint: "Grammar stable ho to sentence aur natural lagta hai.",
+    howToEarn: "Log 5 strong grammar practice days in the weekly tracker."
   },
   {
     id: "a1-graduate",
-    emoji: "🎓",
+    mark: "A1",
     name: "A1 Graduate",
-    description: "Passed the A1 level assessment",
-    hindiHint: "Pehla CEFR level clear — ab A2 ki taraf",
-    howToEarn: "Pass the A1 level test",
+    description: "Reached A1-level progress on the CEFR roadmap.",
+    hindiHint: "Ab basic se practical English ki taraf move ho rahe ho.",
+    howToEarn: "Earn enough XP to unlock A1."
   },
   {
     id: "speaking-milestone",
-    emoji: "🎤",
+    mark: "10H",
     name: "Speaking Milestone",
-    description: "Logged 10 hours of total speaking practice",
-    hindiHint: "Dus ghante bolke — ab awaaz mein confidence aa gaya",
-    howToEarn: "Log 600 minutes of speaking practice",
+    description: "Logged 10 hours of total speaking practice.",
+    hindiHint: "Itna bolne ke baad awaaz me confidence aa jata hai.",
+    howToEarn: "Log 600 minutes of total speaking practice."
   },
   {
     id: "monthly-master",
-    emoji: "🏆",
+    mark: "30D",
     name: "Monthly Master",
-    description: "Maintained a 30-day streak",
-    hindiHint: "Ek poora mahina — ab English teri aadat ban gayi",
-    howToEarn: "Maintain a 30-day streak",
+    description: "Maintained a 30-day streak.",
+    hindiHint: "Ek poora mahina consistency dikhana alag level hai.",
+    howToEarn: "Maintain a 30-day streak."
   },
   {
     id: "vocab-sprint-winner",
-    emoji: "🏅",
+    mark: "VOC",
     name: "Vocab Sprint Winner",
-    description: "Won the weekly vocabulary challenge",
-    hindiHint: "Is hafte vocabulary mein sabse aage — champion",
-    howToEarn: "Complete the Vocabulary Sprint weekly challenge",
+    description: "Won the weekly vocabulary challenge.",
+    hindiHint: "Is hafte vocabulary me sabse tez growth dikh rahi hai.",
+    howToEarn: "Complete the 50-word weekly vocabulary sprint."
   },
   {
     id: "c1-champion",
-    emoji: "👑",
+    mark: "C1",
     name: "C1 Champion",
-    description: "Reached C1 Advanced level",
-    hindiHint: "Boardroom tak — ab koi rok nahi sakta",
-    howToEarn: "Reach C1 level on the CEFR roadmap",
-  },
+    description: "Reached C1 Advanced level.",
+    hindiHint: "Boardroom level fluency ab nazdeek nahi, unlock ho chuki hai.",
+    howToEarn: "Reach C1 level on the CEFR roadmap."
+  }
 ];
 
-// Map badge names to IDs for matching with stored progress
 const badgeNameToId: Record<string, string> = {
-  "Starter Spark": "first-word",
-  "Mic Friend": "first-conversation",
-  "First Word": "first-word",
-  "Alphabet Hero": "alphabet-hero",
+  "Starter Spark": "starter-spark",
+  "Mic Friend": "mic-friend",
   "100 Words": "100-words",
   "First Conversation": "first-conversation",
   "3-Day Streak": "3-day-streak",
@@ -128,7 +125,7 @@ const badgeNameToId: Record<string, string> = {
   "Speaking Milestone": "speaking-milestone",
   "Monthly Master": "monthly-master",
   "Vocab Sprint Winner": "vocab-sprint-winner",
-  "C1 Champion": "c1-champion",
+  "C1 Champion": "c1-champion"
 };
 
 export default function AchievementsPage() {
@@ -137,68 +134,80 @@ export default function AchievementsPage() {
 
   useEffect(() => {
     const progress = readLearnerProgress();
-    setTotalXp(progress.totalXp);
     const earned = new Set<string>();
 
-    // Map stored badge names to IDs
-    for (const badge of progress.badges) {
-      const id = badgeNameToId[badge];
-      if (id) earned.add(id);
+    setTotalXp(progress.totalXp);
+
+    for (const badgeName of progress.badges) {
+      const id = badgeNameToId[badgeName];
+      if (id) {
+        earned.add(id);
+      }
     }
 
-    // Auto-unlock based on progress stats
-    if (progress.lessonsCompleted >= 1) earned.add("first-word");
+    if (progress.lessonsCompleted >= 1) earned.add("starter-spark");
+    if (progress.speakingMinutes >= 5) earned.add("mic-friend");
     if (progress.vocabularyWords >= 100) earned.add("100-words");
+    if (progress.weeklyStats.roleplays >= 1) earned.add("first-conversation");
     if (progress.streakDays >= 3) earned.add("3-day-streak");
     if (progress.streakDays >= 7) earned.add("week-warrior");
     if (progress.streakDays >= 30) earned.add("monthly-master");
+    if (progress.weeklyStats.vocabularyWords >= 50) earned.add("vocab-sprint-winner");
+    if (progress.weeklyStats.perfectGrammarDays >= 5) earned.add("grammar-star");
     if (progress.speakingMinutes >= 600) earned.add("speaking-milestone");
+    if (progress.totalXp >= 180) earned.add("a1-graduate");
+    if (getCurrentCefrLevel(progress.totalXp) === "C1") earned.add("c1-champion");
 
     setEarnedIds(earned);
   }, []);
 
   const earnedCount = earnedIds.size;
+  const progressPercent = allBadges.length ? Math.round((earnedCount / allBadges.length) * 100) : 0;
+  const currentLevel = getCurrentCefrLevel(totalXp);
 
   return (
     <main className="section-shell space-y-10">
       <SectionHeading
         eyebrow="Achievements"
-        title="Teri Mehnat Ka Badge"
-        subtitle="Every badge is a milestone you actually earned"
-        description="Yahan woh sab dikhta hai jo tune consistently karke unlock kiya. Locked badges teri agle steps hain — ek ek karke unlock hoti jayengi."
+        title="Teri Mehnat Ka Badge Board"
+        subtitle="Every badge here maps to real progress you have made"
+        description="Yahan tum dekh sakte ho ki kaunsi consistency, speaking, aur vocabulary milestones unlock ho chuki hain, aur next badge ke liye kya karna hai."
       />
 
-      {/* Stats bar */}
       <section className="surface-card halo-panel p-6 sm:p-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid gap-4 lg:grid-cols-3">
           <div>
-            <h2 className="font-display text-3xl text-ink">
-              {earnedCount} / {allBadges.length} Badges Unlocked
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Unlocked badges</p>
+            <h2 className="mt-3 font-display text-3xl text-ink">
+              {earnedCount} / {allBadges.length}
             </h2>
-            <p className="mt-2 text-sm font-medium text-stone">
-              {allBadges.length - earnedCount === 0
-                ? "Sab badges mil gaye — tu legend hai! 👑"
-                : `${allBadges.length - earnedCount} badges abhi baki hain — keep going!`}
+            <p className="mt-2 text-sm text-stone">
+              {earnedCount === allBadges.length
+                ? "Sab milestones unlock ho chuke hain."
+                : `${allBadges.length - earnedCount} badges abhi baki hain.`}
             </p>
           </div>
-          <div className="flex flex-col items-start gap-3 sm:items-end">
-            <div className="rounded-[1.5rem] bg-forest px-5 py-3 text-white">
-              <p className="text-xs uppercase tracking-[0.22em] text-white/70">Total XP</p>
-              <p className="mt-1 text-2xl font-bold">{totalXp.toLocaleString()}</p>
-            </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Total XP</p>
+            <p className="mt-3 text-3xl font-bold text-ink">{totalXp.toLocaleString()}</p>
+            <p className="mt-2 text-sm text-stone">All tracked progress from your local learner history.</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Current level</p>
+            <p className="mt-3 text-3xl font-bold text-ink">{currentLevel}</p>
+            <p className="mt-2 text-sm text-stone">Roadmap unlocks are driven by your saved XP.</p>
           </div>
         </div>
 
-        {/* Progress bar */}
         <div className="mt-6">
-          <div className="flex items-center justify-between text-xs font-semibold text-stone mb-2">
-            <span>Progress</span>
-            <span>{Math.round((earnedCount / allBadges.length) * 100)}%</span>
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold text-stone">
+            <span>Badge progress</span>
+            <span>{progressPercent}%</span>
           </div>
           <div className="h-3 rounded-full bg-mist">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${(earnedCount / allBadges.length) * 100}%` }}
+              animate={{ width: `${progressPercent}%` }}
               transition={{ duration: 0.8, ease: "easeOut" }}
               className="h-3 rounded-full bg-forest"
             />
@@ -206,7 +215,6 @@ export default function AchievementsPage() {
         </div>
       </section>
 
-      {/* Badge grid */}
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {allBadges.map((badge, index) => {
           const isEarned = earnedIds.has(badge.id);
@@ -218,27 +226,23 @@ export default function AchievementsPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.4, delay: index * 0.04 }}
-              className={`surface-card p-6 transition ${
-                isEarned ? "border-forest/20" : "opacity-60"
-              }`}
-              aria-label={`${badge.name} badge — ${isEarned ? "earned" : "locked"}`}
+              className={`surface-card p-6 transition ${isEarned ? "border-forest/20" : "opacity-70"}`}
+              aria-label={`${badge.name} badge ${isEarned ? "earned" : "locked"}`}
             >
               <div className="flex items-start gap-4">
                 <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
-                    isEarned ? "bg-forest-soft" : "bg-mist"
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-sm font-bold tracking-[0.12em] ${
+                    isEarned ? "bg-forest-soft text-forest" : "bg-mist text-stone"
                   }`}
                 >
-                  {isEarned ? badge.emoji : "🔒"}
+                  {isEarned ? badge.mark : "LOCK"}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-display text-xl text-ink">{badge.name}</h3>
-                    {isEarned && (
-                      <span className="rounded-full bg-forest/10 px-2 py-0.5 text-xs font-bold text-forest">
-                        Earned
-                      </span>
-                    )}
+                    {isEarned ? (
+                      <span className="rounded-full bg-forest/10 px-2 py-0.5 text-xs font-bold text-forest">Earned</span>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-sm font-medium text-stone">{badge.hindiHint}</p>
                 </div>
@@ -246,11 +250,9 @@ export default function AchievementsPage() {
 
               <div className="mt-4 rounded-[1.3rem] bg-mist p-4">
                 <p className="text-sm leading-6 text-stone">{badge.description}</p>
-                {!isEarned && (
-                  <p className="mt-2 text-xs font-semibold text-forest">
-                    How to earn: {badge.howToEarn}
-                  </p>
-                )}
+                {!isEarned ? (
+                  <p className="mt-2 text-xs font-semibold text-forest">How to earn: {badge.howToEarn}</p>
+                ) : null}
               </div>
             </motion.article>
           );
