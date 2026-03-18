@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { getApiUrl } from "@/lib/api";
+import { KeyRound, Mail, UserRound } from "lucide-react";
+import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
 import { storeUserId } from "@/lib/user-session";
 
 type CreateUserResponse = {
@@ -31,11 +32,9 @@ export function DashboardAccountForm() {
     setError(null);
 
     try {
-      const response = await fetch(getApiUrl("signup"), {
+      const data = await apiFetchJson<CreateUserResponse>("signup", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           name: nextName,
           email: nextEmail,
@@ -43,69 +42,84 @@ export function DashboardAccountForm() {
         })
       });
 
-      const data = (await response.json()) as CreateUserResponse;
-
-      if (!response.ok || typeof data.userId !== "number") {
-        throw new Error(data.error ?? "User creation failed.");
+      if (typeof data.userId !== "number") {
+        throw new Error("User creation failed.");
       }
 
       storeUserId(data.userId);
       window.location.href = "/dashboard";
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "User creation failed.";
-      setError(message);
+      setError(toApiErrorMessage(requestError, "User creation failed."));
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-8 shadow-card">
-      <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Create Account</p>
-      <h2 className="mt-4 font-display text-3xl text-ink">Create a learner account and save the active session.</h2>
-      <p className="mt-3 max-w-xl text-sm leading-6 text-ink/70">
-        Sign up with name, email, and password. The new user ID is stored locally so practice and vocabulary activity can use the active account.
-      </p>
+    <div className="surface-card p-6 sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-forest">Create Account</p>
+      <h2 className="mt-4 font-display text-3xl text-ink">Learner profile banao aur session save karo</h2>
+      <p className="mt-3 max-w-xl text-sm leading-7 text-stone">Name, email, aur password ke saath account create karo. Signup ke baad tum seedha dashboard par pahunch jaoge.</p>
 
-      <form onSubmit={(event) => void createUser(event)} className="mt-6 space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <input
-            name="name"
-            autoComplete="name"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-14 rounded-full border border-ink/10 bg-sand px-5 text-sm text-ink outline-none placeholder:text-ink/35 focus:border-teal"
-          />
-          <input
-            type="email"
-            name="email"
-            autoComplete="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-14 rounded-full border border-ink/10 bg-sand px-5 text-sm text-ink outline-none placeholder:text-ink/35 focus:border-teal"
-          />
-          <input
-            type="password"
-            name="password"
-            autoComplete="new-password"
-            placeholder="Create a password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-14 rounded-full border border-ink/10 bg-sand px-5 text-sm text-ink outline-none placeholder:text-ink/35 focus:border-teal sm:col-span-2"
-          />
-        </div>
+      <form onSubmit={(event) => void createUser(event)} className="mt-6 space-y-5">
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-ink">Full name</span>
+          <div className="flex items-center gap-3 rounded-full border border-ink/10 bg-mist px-5">
+            <UserRound className="h-4 w-4 text-stone" />
+            <input
+              aria-label="Full name"
+              name="name"
+              autoComplete="name"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="h-14 w-full bg-transparent text-sm text-ink outline-none placeholder:text-stone/50"
+            />
+          </div>
+        </label>
 
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <button
-            type="submit"
-            disabled={!name.trim() || !email.trim() || !password || isSubmitting}
-            className="h-14 rounded-full bg-clay px-8 text-sm font-bold text-white hover:bg-clay/90 disabled:cursor-not-allowed disabled:bg-clay/50"
-          >
-            {isSubmitting ? "Creating..." : "Sign Up"}
-          </button>
-        </div>
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-ink">Email</span>
+          <div className="flex items-center gap-3 rounded-full border border-ink/10 bg-mist px-5">
+            <Mail className="h-4 w-4 text-stone" />
+            <input
+              aria-label="Email address"
+              type="email"
+              name="email"
+              autoComplete="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-14 w-full bg-transparent text-sm text-ink outline-none placeholder:text-stone/50"
+            />
+          </div>
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-ink">Password</span>
+          <div className="flex items-center gap-3 rounded-full border border-ink/10 bg-mist px-5">
+            <KeyRound className="h-4 w-4 text-stone" />
+            <input
+              aria-label="Create a password"
+              type="password"
+              name="password"
+              autoComplete="new-password"
+              placeholder="Create a password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-14 w-full bg-transparent text-sm text-ink outline-none placeholder:text-stone/50"
+            />
+          </div>
+        </label>
+
+        <button
+          type="submit"
+          aria-label="Create learner account"
+          disabled={!name.trim() || !email.trim() || !password || isSubmitting}
+          className="inline-flex h-14 items-center justify-center rounded-full bg-forest px-8 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-forest/50"
+        >
+          {isSubmitting ? "Creating..." : "Sign Up"}
+        </button>
       </form>
 
       {error ? <p className="mt-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}

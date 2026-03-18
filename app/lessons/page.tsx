@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getApiUrl } from "@/lib/api";
+import { apiFetchJson, getApiUrl, toApiErrorMessage } from "@/lib/api";
+import { recordLearnerProgress } from "@/lib/local-progress";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 type Lesson = {
@@ -140,17 +141,17 @@ export default function LessonsPage() {
 
         const lessonsApiUrl = getApiUrl("lessons");
         const lessonProgressApiUrl = getApiUrl("lessonProgress");
-        const [lessonResponse, progressResponse] = await Promise.all([fetch(lessonsApiUrl), fetch(`${lessonProgressApiUrl}/${userId}`)]);
+        const [lessonData, progressData] = await Promise.all([
+          apiFetchJson<Lesson[] | { error?: string }>(lessonsApiUrl, { timeoutMs: 15000 }),
+          apiFetchJson<LessonProgressRow[] | { error?: string }>(`${lessonProgressApiUrl}/${userId}`, { timeoutMs: 15000 })
+        ]);
 
-        const lessonData = (await lessonResponse.json()) as Lesson[] | { error?: string };
-        const progressData = (await progressResponse.json()) as LessonProgressRow[] | { error?: string };
-
-        if (!lessonResponse.ok || !Array.isArray(lessonData)) {
-          throw new Error(!Array.isArray(lessonData) ? lessonData.error ?? "Lesson request failed." : "Lesson request failed.");
+        if (!Array.isArray(lessonData)) {
+          throw new Error("Lesson request failed.");
         }
 
-        if (!progressResponse.ok || !Array.isArray(progressData)) {
-          throw new Error(!Array.isArray(progressData) ? progressData.error ?? "Lesson progress request failed." : "Lesson progress request failed.");
+        if (!Array.isArray(progressData)) {
+          throw new Error("Lesson progress request failed.");
         }
 
         if (ignore) {
@@ -173,7 +174,7 @@ export default function LessonsPage() {
           return defaultLessonId;
         });
       } catch (requestError) {
-        const message = requestError instanceof Error ? requestError.message : "Lesson request failed.";
+        const message = toApiErrorMessage(requestError, "Lesson request failed.");
 
         if (!ignore) {
           setError(message);
@@ -325,32 +326,25 @@ export default function LessonsPage() {
     setStatusMessage(null);
 
     try {
-      const analysisResponse = await fetch(getApiUrl("analyze"), {
+      const analysisData = await apiFetchJson<SentenceAnalysis>("analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 30000,
         body: JSON.stringify({ sentence: trimmedTranscript })
       });
 
-      const analysisData = (await analysisResponse.json()) as SentenceAnalysis;
-
       if (
-        !analysisResponse.ok ||
         typeof analysisData.corrected !== "string" ||
         typeof analysisData.explanation !== "string" ||
         typeof analysisData.tip !== "string" ||
         typeof analysisData.pronunciationTip !== "string" ||
         typeof analysisData.fluencyFeedback !== "string"
       ) {
-        throw new Error(analysisData.error ?? "Lesson analysis failed.");
+        throw new Error("Lesson analysis failed.");
       }
 
-      const progressResponse = await fetch(getApiUrl("dailyProgress"), {
+      const progressData = await apiFetchJson<DailyProgressResponse>("dailyProgress", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           userId,
           sentences: 1,
@@ -360,11 +354,18 @@ export default function LessonsPage() {
         })
       });
 
-      const progressData = (await progressResponse.json()) as DailyProgressResponse;
-
-      if (!progressResponse.ok || !progressData.success) {
-        throw new Error(progressData.error ?? "Speaking progress could not be saved.");
+      if (!progressData.success) {
+        throw new Error("Speaking progress could not be saved.");
       }
+
+      recordLearnerProgress({
+        xp: 18,
+        speakingMinutes: 3,
+        streakActivity: true,
+        weeklyStats: {
+          speakingDrills: 1
+        }
+      });
 
       setAnalysis(analysisData);
       setStatusMessage(
@@ -373,7 +374,7 @@ export default function LessonsPage() {
           : `Feedback is ready. Review it and then mark "${activeLesson.title}" complete.`
       );
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "Lesson practice failed.";
+      const message = toApiErrorMessage(requestError, "Lesson practice failed.");
       setError(message);
     } finally {
       setIsAnalyzing(false);
@@ -390,11 +391,9 @@ export default function LessonsPage() {
     setStatusMessage(null);
 
     try {
-      const completionResponse = await fetch(getApiUrl("lessonProgress"), {
+      const completionData = await apiFetchJson<LessonProgressResponse>("lessonProgress", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           userId,
           lessonId: activeLesson.id,
@@ -402,10 +401,17 @@ export default function LessonsPage() {
         })
       });
 
-      const completionData = (await completionResponse.json()) as LessonProgressResponse;
+      if (!completionData.success) {
+        throw new Error("Lesson completion could not be saved.");
+      }
 
-      if (!completionResponse.ok || !completionData.success) {
-        throw new Error(completionData.error ?? "Lesson completion could not be saved.");
+      if (!completionData.alreadyCompleted) {
+        recordLearnerProgress({
+          xp: 60,
+          lessonsCompleted: 1,
+          speakingMinutes: 4,
+          streakActivity: true
+        });
       }
 
       setCompletedLessonIds((currentIds) => (currentIds.includes(activeLesson.id) ? currentIds : [...currentIds, activeLesson.id]));
@@ -415,7 +421,7 @@ export default function LessonsPage() {
           : `"${activeLesson.title}" is now complete${completionData.currentStreak ? ` and your streak is ${completionData.currentStreak} days.` : "."}`
       );
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "Lesson completion failed.";
+      const message = toApiErrorMessage(requestError, "Lesson completion failed.");
       setError(message);
     } finally {
       setIsCompleting(false);
@@ -427,6 +433,7 @@ export default function LessonsPage() {
       <section className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Interactive Lessons</p>
         <h1 className="mt-4 font-display text-4xl text-ink">Practice each lesson by speaking, then get AI coaching.</h1>
+        <p className="mt-3 text-base font-medium text-stone">Har lesson ko bolkar complete karo aur Hindi support ke saath improve karo</p>
         <p className="mt-4 max-w-3xl text-base leading-7 text-ink/75">
           Complete lessons in order. Each lesson now has a sentence to repeat, speech capture or manual typing, AI feedback, and a completion step that updates your dashboard.
         </p>
@@ -461,6 +468,7 @@ export default function LessonsPage() {
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.2em] text-clay">{lesson.level}</p>
                         <h2 className="mt-3 font-display text-2xl text-ink">{lesson.title}</h2>
+                        <p className="mt-2 text-sm font-medium text-stone">Is lesson ko repeat karke confidence build karo</p>
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-bold ${
@@ -473,6 +481,7 @@ export default function LessonsPage() {
                     <p className="mt-4 text-sm leading-6 text-ink/75">{lesson.example}</p>
                     <button
                       type="button"
+                      aria-label={`Select ${lesson.title}`}
                       onClick={() => selectLesson(lesson)}
                       disabled={!isUnlocked}
                       className="mt-6 rounded-full bg-clay px-5 py-3 text-sm font-bold text-white hover:bg-clay/90 disabled:cursor-not-allowed disabled:bg-clay/40"
@@ -489,6 +498,7 @@ export default function LessonsPage() {
                 <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
                   <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Lesson Exercise</p>
                   <h2 className="mt-4 font-display text-3xl text-ink">{activeLesson.title}</h2>
+                  <p className="mt-2 text-sm font-medium text-stone">Sentence suno, bolo, phir feedback ke saath isse better banao</p>
                   <p className="mt-4 text-sm font-semibold uppercase tracking-[0.2em] text-clay">Repeat this sentence</p>
                   <div className="mt-3 rounded-[1.5rem] bg-sand/80 p-5">
                     <p className="text-lg font-semibold text-ink">{activeLesson.example}</p>
@@ -508,6 +518,7 @@ export default function LessonsPage() {
                     <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                       <button
                         type="button"
+                        aria-label="Start lesson speech capture"
                         onClick={startSpeaking}
                         disabled={isRecording || isAnalyzing || isCompleting}
                         className="w-full rounded-full bg-teal px-6 py-3 text-sm font-bold text-white hover:bg-teal/90 disabled:cursor-not-allowed disabled:bg-teal/50 sm:w-auto"
@@ -516,6 +527,7 @@ export default function LessonsPage() {
                       </button>
                       <button
                         type="button"
+                        aria-label="Stop lesson speech capture"
                         onClick={stopSpeaking}
                         disabled={!isRecording}
                         className="w-full rounded-full border border-ink/15 px-6 py-3 text-sm font-bold text-ink hover:border-clay hover:text-clay disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
@@ -524,6 +536,7 @@ export default function LessonsPage() {
                       </button>
                       <button
                         type="button"
+                        aria-label="Analyze lesson answer"
                         onClick={() => void analyzeLessonPractice()}
                         disabled={isRecording || isAnalyzing || isCompleting || transcript.trim().length < 3}
                         className="w-full rounded-full bg-clay px-6 py-3 text-sm font-bold text-white hover:bg-clay/90 disabled:cursor-not-allowed disabled:bg-clay/50 sm:w-auto"
@@ -538,6 +551,7 @@ export default function LessonsPage() {
                   </label>
                   <textarea
                     id="lesson-transcript"
+                    aria-label="Type or edit your spoken lesson sentence"
                     value={transcript}
                     onChange={(event) => {
                       setTranscript(event.target.value);
@@ -553,6 +567,7 @@ export default function LessonsPage() {
                 <aside className="rounded-[2rem] border border-ink/10 bg-ink p-6 text-white shadow-card sm:p-8">
                   <p className="text-xs font-bold uppercase tracking-[0.3em] text-gold">AI Feedback</p>
                   <h2 className="mt-4 font-display text-3xl">Lesson speaking coach</h2>
+                  <p className="mt-3 text-sm font-medium text-white/70">Yahaan tumhe correction, explanation, aur next-step coaching milegi</p>
 
                   <div className="mt-6 rounded-3xl bg-white/5 p-5">
                     <p className="text-sm font-semibold text-gold">Completion status</p>
@@ -566,6 +581,7 @@ export default function LessonsPage() {
                     {!isActiveLessonCompleted && analysis ? (
                       <button
                         type="button"
+                        aria-label="Mark current lesson complete"
                         onClick={() => void markLessonComplete()}
                         disabled={isCompleting}
                         className="mt-5 rounded-full bg-gold px-5 py-3 text-sm font-bold text-ink hover:bg-gold/90 disabled:cursor-not-allowed disabled:bg-gold/50"
@@ -618,3 +634,16 @@ export default function LessonsPage() {
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

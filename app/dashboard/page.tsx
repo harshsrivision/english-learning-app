@@ -1,228 +1,199 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
-import { SectionTitle } from "@/components/section-title";
-import { getApiUrl } from "@/lib/api";
-import { useRequiredUserId } from "@/lib/use-required-user-id";
-import { learnerSnapshot, lessons, recentActivities, skillProgress, weeklyGoals } from "@/lib/mock-data";
+import {
+  BarChart3,
+  BookOpen,
+  BookText,
+  Bot,
+  CheckCircle2,
+  Flame,
+  Headphones,
+  Medal,
+  Mic2,
+  Newspaper,
+  RotateCcw,
+  Trophy,
+  Zap
+} from "lucide-react";
+import { DailyPlanCard } from "@/components/daily-plan-card";
+import { DashboardTopBar } from "@/components/dashboard-top-bar";
+import { ProgressStatCard } from "@/components/progress-stat-card";
+import { SectionHeading } from "@/components/section-heading";
+import { dailyPlanBlocks, type DailyPlanBlock } from "@/lib/app-data";
+import {
+  formatSpeakingHours,
+  getChallengeProgress,
+  getCurrentCefrLevel,
+  getCurrentChallenge,
+  getDaysRemainingInWeek,
+  getProgressClass,
+  getTodayCompletedBlocks,
+  getTodayCompletedXp,
+  readLearnerProgress,
+  toggleDailyPlanBlock,
+  writeLearnerProgress,
+  type LearnerProgress
+} from "@/lib/local-progress";
 
-type DailyProgress = {
-  sentences_spoken?: number;
-  words_learned?: number;
-  lessons_completed?: number;
-  current_streak?: number;
-  total_lessons_completed?: number;
-  total_vocabulary_learned?: number;
-  error?: string;
-};
+const blockIcons = {
+  "warm-up": RotateCcw,
+  vocabulary: BookOpen,
+  grammar: BookText,
+  listening: Headphones,
+  reading: Newspaper,
+  speaking: Mic2,
+  roleplay: Bot,
+  quiz: CheckCircle2
+} as const;
 
 export default function DashboardPage() {
-  const { userId, isChecking } = useRequiredUserId();
-  const [progress, setProgress] = useState<DailyProgress>({});
-  const [progressError, setProgressError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<LearnerProgress | null>(null);
 
   useEffect(() => {
-    if (!userId) {
-      return;
+    setProgress(readLearnerProgress());
+  }, []);
+
+  useEffect(() => {
+    if (progress) {
+      writeLearnerProgress(progress);
     }
+  }, [progress]);
 
-    let ignore = false;
-
-    async function loadProgress() {
-      try {
-        setProgressError(null);
-
-        const dailyProgressApiUrl = getApiUrl("dailyProgress");
-        const response = await fetch(`${dailyProgressApiUrl}/${userId}`);
-        const data = (await response.json()) as DailyProgress;
-
-        if (!response.ok) {
-          throw new Error(data.error ?? "Daily progress could not be loaded.");
-        }
-
-        if (!ignore) {
-          setProgress(data);
-        }
-      } catch (requestError) {
-        const message = requestError instanceof Error ? requestError.message : "Daily progress could not be loaded.";
-
-        if (!ignore) {
-          setProgressError(message);
-        }
-      }
-    }
-
-    void loadProgress();
-
-    return () => {
-      ignore = true;
-    };
-  }, [userId]);
-
-  if (isChecking || !userId) {
+  if (!progress) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
-        <div className="rounded-[2rem] border border-dashed border-ink/15 bg-white/70 p-8 text-sm text-ink/65">Checking account session...</div>
+      <main className="section-shell">
+        <div className="surface-card p-6 text-sm text-stone">Dashboard loading ho raha hai...</div>
       </main>
     );
   }
 
+  const currentLevel = getCurrentCefrLevel(progress.totalXp);
+  const completedToday = new Set(getTodayCompletedBlocks(progress));
+  const todayXp = getTodayCompletedXp(progress);
+  const currentChallenge = getCurrentChallenge();
+  const challengeProgress = getChallengeProgress(progress, currentChallenge);
+  const challengePercent = Math.min(100, Math.round((challengeProgress / currentChallenge.goalTotal) * 100));
+  const daysRemaining = getDaysRemainingInWeek();
+
+  function handleToggleBlock(block: DailyPlanBlock) {
+    setProgress((currentProgress) => (currentProgress ? toggleDailyPlanBlock(currentProgress, block) : currentProgress));
+  }
+
+  const stats = [
+    { title: "Total XP earned", subtitle: "Ab tak ka all-time score", value: progress.totalXp.toLocaleString(), icon: Zap },
+    { title: "Current streak", subtitle: "Kitne din lagatar aaye", value: `${progress.streakDays} days`, icon: Flame },
+    { title: "Lessons completed", subtitle: "Session jo finish ho chuke", value: String(progress.lessonsCompleted), icon: CheckCircle2 },
+    { title: "Speaking hours logged", subtitle: "Mic ke saath bitaya hua waqt", value: formatSpeakingHours(progress.speakingMinutes), icon: Mic2 },
+    { title: "Vocabulary words learned", subtitle: "Yaad kiye hue active words", value: String(progress.vocabularyWords), icon: BookOpen },
+    { title: "Current CEFR level", subtitle: "Aaj ka fluency stage", value: currentLevel, icon: BarChart3 }
+  ] as const;
+
   return (
-    <main className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 sm:py-16">
-      <section className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-[2.5rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Learner Dashboard</p>
-          <h1 className="mt-4 font-display text-4xl text-ink sm:text-5xl">Track progress from daily practice to professional fluency.</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-ink/75">
-            {learnerSnapshot.name} is currently at the <span className="font-semibold text-teal">{learnerSnapshot.currentLevel}</span>{" "}
-            level and is {learnerSnapshot.progressToNextLevel}% of the way to <span className="font-semibold text-clay">{learnerSnapshot.nextLevel}</span>.
-          </p>
+    <main className="section-shell space-y-8">
+      <SectionHeading
+        eyebrow="Learner Dashboard"
+        title="Aaj Ka Progress Center"
+        subtitle="Your daily system for XP, streaks, and spoken growth"
+        description="Yahaan se tum dekh sakte ho ki aaj kya complete hua, is hafte ka challenge kahan tak pahucha, aur fluency journey kitni tez chal rahi hai."
+      />
 
-          <div className="mt-8 rounded-[2rem] bg-sand p-5">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-semibold text-ink">Progress to next level</p>
-              <p className="text-sm font-semibold text-clay">{learnerSnapshot.progressToNextLevel}%</p>
+      <DashboardTopBar streakDays={progress.streakDays} totalXp={progress.totalXp} currentLevel={currentLevel} badgeCount={progress.badges.length} />
+
+      <section className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="surface-card p-6 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Aaj Ka Plan</h2>
+              <p className="mt-2 text-base font-medium text-stone">Today's 45-Minute Session</p>
             </div>
-            <div className="mt-4 h-3 rounded-full bg-white">
-              <div className="h-3 rounded-full bg-clay" style={{ width: `${learnerSnapshot.progressToNextLevel}%` }} />
+            <div className="rounded-[1.5rem] bg-forest px-4 py-3 text-white">
+              <p className="text-xs uppercase tracking-[0.22em] text-white/70">XP earned today</p>
+              <p className="mt-2 text-3xl font-bold">{todayXp}</p>
             </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {dailyPlanBlocks.map((block) => {
+              const Icon = blockIcons[block.id as keyof typeof blockIcons];
+
+              return (
+                <DailyPlanCard
+                  key={block.id}
+                  id={block.id}
+                  title={block.title}
+                  subtitle={block.hindiSubtitle}
+                  duration={block.duration}
+                  description={block.description}
+                  xp={block.xp}
+                  checked={completedToday.has(block.id)}
+                  icon={Icon}
+                  onToggle={() => handleToggleBlock(block)}
+                />
+              );
+            })}
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-[2rem] border border-ink/10 bg-ink p-6 text-white shadow-card">
-            <p className="text-sm text-white/65">Sentences today</p>
-            <p className="mt-3 text-4xl font-semibold">{progress.sentences_spoken ?? 0}</p>
-            <p className="mt-3 text-sm text-white/75">Every analyzed speaking attempt is counted here.</p>
-          </div>
-          <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card">
-            <p className="text-sm text-ink/60">Words learned today</p>
-            <p className="mt-3 text-4xl font-semibold text-teal">{progress.words_learned ?? 0}</p>
-            <p className="mt-3 text-sm text-ink/70">Vocabulary practice updates the daily word count.</p>
-          </div>
-          <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card">
-            <p className="text-sm text-ink/60">Lessons completed today</p>
-            <p className="mt-3 text-4xl font-semibold text-clay">{progress.lessons_completed ?? 0}</p>
-            <p className="mt-3 text-sm text-ink/70">Interactive lesson completions save directly to the backend.</p>
-          </div>
-          <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card">
-            <p className="text-sm text-ink/60">Current streak</p>
-            <p className="mt-3 text-4xl font-semibold text-gold">{progress.current_streak ?? 0} days</p>
-            <p className="mt-3 text-sm text-ink/70">The streak updates from saved daily activity, not from mock data.</p>
-          </div>
+        <div className="space-y-6">
+          <section className="surface-card p-6 sm:p-8">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Is Hafte Ka Challenge</h2>
+              <p className="mt-2 text-base font-medium text-stone">This Week's Challenge</p>
+            </div>
+            <div className="mt-6 rounded-[1.6rem] bg-mist p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-forest">Current rotation</p>
+                  <h3 className="mt-2 font-display text-2xl text-ink">{currentChallenge.name}</h3>
+                  <p className="mt-2 text-sm font-semibold text-stone">{currentChallenge.hindiSubtitle}</p>
+                </div>
+                <Trophy className="h-6 w-6 text-gold" />
+              </div>
+              <p className="mt-4 text-sm leading-7 text-stone">{currentChallenge.goal}</p>
+              <div className="mt-5 h-3 rounded-full bg-white">
+                <div className={`h-3 rounded-full bg-forest ${getProgressClass(challengePercent)}`} />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm font-semibold text-stone">
+                <span>{challengeProgress} / {currentChallenge.goalTotal}</span>
+                <span>{daysRemaining === 0 ? "Ends today" : `${daysRemaining} days remaining`}</span>
+              </div>
+              <div className="mt-5 rounded-[1.3rem] bg-white p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-stone">Reward</p>
+                <p className="mt-2 text-sm font-semibold text-ink">{currentChallenge.reward}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="surface-card p-6 sm:p-8">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Unlocked Badges</h2>
+              <p className="mt-2 text-base font-medium text-stone">Jo consistency dikh rahi hai, uska reward yahan milega</p>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {progress.badges.map((badge) => (
+                <span key={badge} className="inline-flex items-center gap-2 rounded-full bg-forest-soft px-4 py-2 text-sm font-semibold text-forest">
+                  <Medal className="h-4 w-4" />
+                  {badge}
+                </span>
+              ))}
+            </div>
+          </section>
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Live Account Summary</p>
-        <h2 className="mt-4 font-display text-3xl text-ink">Daily progress and totals from the backend</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">
-          {`This panel reads today's saved progress and user totals for learner ${userId}.`}
-        </p>
-
-        {progressError ? <p className="mt-6 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{progressError}</p> : null}
-
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Sentences Spoken Today</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.sentences_spoken ?? 0}</p>
-          </div>
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Words Learned Today</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.words_learned ?? 0}</p>
-          </div>
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Lessons Completed Today</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.lessons_completed ?? 0}</p>
-          </div>
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Current Streak</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.current_streak ?? 0}</p>
-          </div>
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Total Lessons Completed</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.total_lessons_completed ?? 0}</p>
-          </div>
-          <div className="rounded-[2rem] bg-sand/80 p-6">
-            <p className="text-sm font-semibold text-clay">Total Vocabulary Learned</p>
-            <p className="mt-3 text-4xl font-semibold text-ink">{progress.total_vocabulary_learned ?? 0}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-8">
-        <SectionTitle
-          eyebrow="Skill Breakdown"
-          title="See where progress is accelerating and where more repetition is needed"
-          description="These progress bars can be connected to backend scoring later, but they already establish the dashboard structure and level overview."
+      <section className="space-y-6">
+        <SectionHeading
+          eyebrow="Progress Stats"
+          title="Har Number Ka Matlab Hai"
+          subtitle="The stats that show if your English is actually moving"
+          description="Ye cards sirf vanity numbers nahi hain. Inse pata chalta hai ki vocabulary, speaking, aur consistency teenon saath badh rahe hain ya nahi."
         />
-        <div className="grid gap-6 lg:grid-cols-2">
-          {skillProgress.map((item) => (
-            <div key={item.skill} className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="font-display text-2xl text-ink">{item.skill}</h2>
-                <span className="text-sm font-semibold text-teal">{item.percent}%</span>
-              </div>
-              <div className="mt-4 h-3 rounded-full bg-sand">
-                <div className="h-3 rounded-full bg-teal" style={{ width: `${item.percent}%` }} />
-              </div>
-              <p className="mt-4 text-sm leading-6 text-ink/70">{item.note}</p>
-            </div>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {stats.map((stat, index) => (
+            <ProgressStatCard key={stat.title} title={stat.title} subtitle={stat.subtitle} value={stat.value} icon={stat.icon} delay={index * 0.05} />
           ))}
         </div>
-      </section>
-
-      <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-8 shadow-card">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-clay">Weekly Goals</p>
-          <div className="mt-6 space-y-5">
-            {weeklyGoals.map((goal) => (
-              <div key={goal.title}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-lg font-semibold text-ink">{goal.title}</p>
-                    <p className="text-sm text-ink/65">{goal.target}</p>
-                  </div>
-                  <span className="text-sm font-semibold text-clay">{goal.progress}%</span>
-                </div>
-                <div className="mt-3 h-3 rounded-full bg-sand">
-                  <div className="h-3 rounded-full bg-clay" style={{ width: `${goal.progress}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-ink/10 bg-ink p-8 text-white shadow-card">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-gold">Recent Activity</p>
-          <div className="mt-6 space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.title} className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="font-display text-2xl">{activity.title}</h2>
-                  <span className="text-sm text-white/60">{activity.timeLabel}</span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-white/80">{activity.result}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Level Roadmap</p>
-        <div className="mt-6 grid gap-4 lg:grid-cols-4">
-          {lessons.map((lesson) => (
-            <div key={lesson.id} className="rounded-3xl bg-sand p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-clay">{lesson.level}</p>
-              <h2 className="mt-3 font-display text-2xl text-ink">{lesson.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-ink/70">{lesson.focus}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-6 text-sm leading-6 text-ink/65">
-          Completed lessons: {progress.total_lessons_completed ?? 0} | Vocabulary mastered: {progress.total_vocabulary_learned ?? 0}
-        </p>
       </section>
     </main>
   );

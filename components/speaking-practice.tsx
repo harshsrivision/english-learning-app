@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getApiUrl } from "@/lib/api";
+import { apiFetchJson, getApiUrl, toApiErrorMessage } from "@/lib/api";
+import { recordLearnerProgress } from "@/lib/local-progress";
 
 type Level = "beginner" | "intermediate" | "advanced" | "professional";
 type RecordingState = "idle" | "recording" | "processing";
@@ -74,7 +75,8 @@ type PronunciationReview = {
 };
 
 type CorrectionResponse = {
-  result: string;
+  result?: string | { corrected?: string };
+  corrected?: string;
 };
 
 type PronunciationScoreResponse = {
@@ -221,41 +223,42 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   async function sendSentence(sentence: string) {
     try {
-      const response = await fetch(getApiUrl("correction"), {
+      const data = await apiFetchJson<CorrectionResponse & { error?: string }>("correct", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 30000,
         body: JSON.stringify({ sentence })
       });
 
-      const data = (await response.json()) as CorrectionResponse & { error?: string };
+      const correctedText =
+        typeof data.result === "string"
+          ? data.result
+          : data.result && typeof data.result === "object" && typeof data.result.corrected === "string"
+            ? data.result.corrected
+            : typeof data.corrected === "string"
+              ? data.corrected
+              : null;
 
-      if (!response.ok || typeof data.result !== "string") {
-        throw new Error(data.error ?? "Correction request failed");
+      if (!correctedText) {
+        throw new Error("Correction request failed");
       }
 
-      return data;
+      return { result: correctedText };
     } catch (requestError) {
       console.error("Correction API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Correction request failed");
+      throw new Error(toApiErrorMessage(requestError, "Correction request failed"));
     }
   }
 
   async function checkPronunciation(sentence: string) {
     try {
-      const response = await fetch(getApiUrl("pronunciation"), {
+      const data = await apiFetchJson<PronunciationScoreResponse>("pronunciation", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 30000,
         body: JSON.stringify({ sentence })
       });
 
-      const data = (await response.json()) as PronunciationScoreResponse;
-
-      if (!response.ok || typeof data.score !== "number" || typeof data.feedback !== "string") {
-        throw new Error(data.error ?? "Pronunciation request failed");
+      if (typeof data.score !== "number" || typeof data.feedback !== "string") {
+        throw new Error("Pronunciation request failed");
       }
 
       return {
@@ -264,97 +267,74 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
       } satisfies PronunciationScore;
     } catch (requestError) {
       console.error("Pronunciation API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Pronunciation request failed");
+      throw new Error(toApiErrorMessage(requestError, "Pronunciation request failed"));
     }
   }
 
   async function analyzeSpeech(sentence: string) {
     try {
-      const response = await fetch(getApiUrl("analyze"), {
+      const data = await apiFetchJson<SentenceAnalysis>("analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 30000,
         body: JSON.stringify({ sentence })
       });
 
-      const data = (await response.json()) as SentenceAnalysis;
-
       if (
-        !response.ok ||
         typeof data.corrected !== "string" ||
         typeof data.explanation !== "string" ||
         typeof data.tip !== "string" ||
         typeof data.pronunciationTip !== "string" ||
         typeof data.fluencyFeedback !== "string"
       ) {
-        throw new Error(data.error ?? "Sentence analysis failed");
+        throw new Error("Sentence analysis failed");
       }
 
       return data;
     } catch (requestError) {
       console.error("Analyze API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Sentence analysis failed");
+      throw new Error(toApiErrorMessage(requestError, "Sentence analysis failed"));
     }
   }
 
   async function fetchSpeakingSession(sentence: string) {
     try {
       const apiBaseUrl = getApiUrl("apiBase");
-      const response = await fetch(`${apiBaseUrl}/speaking/session`, {
+      return await apiFetchJson<SpeakingSessionFeedback>(`${apiBaseUrl}/speaking/session`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           prompt: scenario.prompt,
           transcribedText: sentence,
           level: scenario.level
         })
       });
-
-      if (!response.ok) {
-        throw new Error("Speaking session request failed");
-      }
-
-      return (await response.json()) as SpeakingSessionFeedback;
     } catch (requestError) {
       console.error("Speaking session API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Speaking session request failed");
+      throw new Error(toApiErrorMessage(requestError, "Speaking session request failed"));
     }
   }
 
   async function fetchPronunciationReview(sentence: string) {
     try {
       const apiBaseUrl = getApiUrl("apiBase");
-      const response = await fetch(`${apiBaseUrl}/pronunciation/analyze`, {
+      return await apiFetchJson<PronunciationReview>(`${apiBaseUrl}/pronunciation/analyze`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           transcript: sentence
         })
       });
-
-      if (!response.ok) {
-        throw new Error("Pronunciation review request failed");
-      }
-
-      return (await response.json()) as PronunciationReview;
     } catch (requestError) {
       console.error("Pronunciation review API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Pronunciation review request failed");
+      throw new Error(toApiErrorMessage(requestError, "Pronunciation review request failed"));
     }
   }
 
   async function saveSpokenSentenceProgress() {
     try {
-      const response = await fetch(getApiUrl("dailyProgress"), {
+      const data = await apiFetchJson<{ success?: boolean; error?: string }>("dailyProgress", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        timeoutMs: 15000,
         body: JSON.stringify({
           userId,
           sentences: 1,
@@ -364,14 +344,12 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         })
       });
 
-      const data = (await response.json()) as { success?: boolean; error?: string };
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error ?? "Daily progress could not be saved.");
+      if (!data.success) {
+        throw new Error("Daily progress could not be saved.");
       }
     } catch (requestError) {
       console.error("Daily progress API error", requestError);
-      throw new Error(requestError instanceof Error ? requestError.message : "Daily progress could not be saved.");
+      throw new Error(toApiErrorMessage(requestError, "Daily progress could not be saved."));
     }
   }
 
@@ -436,6 +414,15 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
       if (sentenceAnalysisResult.status === "fulfilled") {
         setSentenceAnalysis(sentenceAnalysisResult.value);
         hasRemoteFeedback = true;
+
+        recordLearnerProgress({
+          xp: 24,
+          speakingMinutes: 6,
+          streakActivity: true,
+          weeklyStats: {
+            speakingDrills: 1
+          }
+        });
 
         try {
           await saveSpokenSentenceProgress();
@@ -623,6 +610,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
       <section className="rounded-[2rem] border border-ink/10 bg-white/85 p-6 shadow-card sm:p-8">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">AI Speaking Practice</p>
         <h1 className="mt-4 font-display text-3xl text-ink sm:text-4xl">Speak into your microphone and review the result.</h1>
+        <p className="mt-3 text-base font-medium text-stone">Mic on karo, bolo, aur turant dekho kaha better karna hai</p>
         <p className="mt-4 max-w-2xl text-base leading-7 text-ink/75">
           The page uses browser microphone access for live capture. If speech recognition is available, the transcript updates while you speak so you can compare your spoken English with the prompt.
         </p>
@@ -632,6 +620,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
             <button
               key={item.title}
               type="button"
+              aria-label={`Choose scenario ${item.title}`}
               onClick={() => {
                 setSelectedScenarioIndex(index);
                 clearPreviousAnalysis();
@@ -678,6 +667,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
               <button
                 type="button"
+                aria-label="Start speaking recording"
                 onClick={startRecording}
                 disabled={recordingState !== "idle"}
                 className="w-full rounded-full bg-teal px-6 py-3 text-sm font-bold text-white hover:bg-teal/90 disabled:cursor-not-allowed disabled:bg-teal/50 sm:w-auto"
@@ -686,6 +676,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
               </button>
               <button
                 type="button"
+                aria-label="Stop speaking recording"
                 onClick={stopRecording}
                 disabled={recordingState !== "recording"}
                 className="w-full rounded-full border border-ink/15 px-6 py-3 text-sm font-bold text-ink hover:border-clay hover:text-clay disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
@@ -694,6 +685,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
               </button>
               <button
                 type="button"
+                aria-label="Analyze spoken transcript"
                 onClick={() => void analyzeTranscript()}
                 disabled={recordingState !== "idle" || transcript.trim().length < 3 || analysisState === "loading"}
                 className="w-full rounded-full border border-ink/15 px-6 py-3 text-sm font-bold text-ink hover:border-teal hover:text-teal disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
@@ -715,6 +707,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
           </label>
           <textarea
             id="transcript"
+            aria-label="Live speaking transcript"
             value={transcript}
             onChange={(event) => {
               setTranscript(event.target.value);
@@ -728,7 +721,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
           {audioUrl ? (
             <div className="mt-6">
               <p className="text-sm font-semibold text-ink">Latest recording</p>
-              <audio controls className="mt-3 w-full">
+              <audio controls aria-label="Latest speaking recording" className="mt-3 w-full">
                 <source src={audioUrl} type="audio/webm" />
               </audio>
             </div>
@@ -739,6 +732,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
       <aside className="rounded-[2rem] border border-ink/10 bg-ink p-6 text-white shadow-card sm:p-8">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-gold">Feedback</p>
         <h2 className="mt-4 font-display text-2xl sm:text-3xl">Pronunciation and fluency review</h2>
+        <p className="mt-3 text-sm font-medium text-white/70">Tumhari speaking ko score, tips, aur Hindi coaching ke saath breakdown kiya jata hai</p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5">
@@ -856,3 +850,13 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

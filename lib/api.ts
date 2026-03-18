@@ -1,25 +1,11 @@
-"use client";
-
-const endpointOverrides = {
-  analyze: process.env.NEXT_PUBLIC_ANALYZE_API_URL,
-  apiBase: process.env.NEXT_PUBLIC_API_BASE_URL,
-  conversation: process.env.NEXT_PUBLIC_CONVERSATION_API_URL,
-  correction: process.env.NEXT_PUBLIC_CORRECTION_API_URL,
-  dailyProgress: process.env.NEXT_PUBLIC_DAILY_PROGRESS_API_URL,
-  lessonProgress: process.env.NEXT_PUBLIC_LESSON_PROGRESS_API_URL,
-  lessons: process.env.NEXT_PUBLIC_LESSONS_API_URL,
-  login: process.env.NEXT_PUBLIC_LOGIN_API_URL,
-  pronunciation: process.env.NEXT_PUBLIC_PRONUNCIATION_API_URL,
-  signup: process.env.NEXT_PUBLIC_SIGNUP_API_URL,
-  user: process.env.NEXT_PUBLIC_USER_API_URL,
-  vocabulary: process.env.NEXT_PUBLIC_VOCABULARY_API_URL,
-  vocabularyProgress: process.env.NEXT_PUBLIC_VOCABULARY_PROGRESS_API_URL
-} as const;
+﻿"use client";
 
 const endpointPaths = {
   analyze: "/analyze",
   apiBase: "/api",
+  chat: "/chat",
   conversation: "/chat",
+  correct: "/correct",
   correction: "/correct",
   dailyProgress: "/daily-progress",
   lessonProgress: "/lesson-progress",
@@ -32,67 +18,150 @@ const endpointPaths = {
   vocabularyProgress: "/vocabulary-progress"
 } as const;
 
-const endpointEnvKeys = {
-  analyze: "NEXT_PUBLIC_ANALYZE_API_URL",
-  apiBase: "NEXT_PUBLIC_API_BASE_URL",
-  conversation: "NEXT_PUBLIC_CONVERSATION_API_URL",
-  correction: "NEXT_PUBLIC_CORRECTION_API_URL",
-  dailyProgress: "NEXT_PUBLIC_DAILY_PROGRESS_API_URL",
-  lessonProgress: "NEXT_PUBLIC_LESSON_PROGRESS_API_URL",
-  lessons: "NEXT_PUBLIC_LESSONS_API_URL",
-  login: "NEXT_PUBLIC_LOGIN_API_URL",
-  pronunciation: "NEXT_PUBLIC_PRONUNCIATION_API_URL",
-  signup: "NEXT_PUBLIC_SIGNUP_API_URL",
-  user: "NEXT_PUBLIC_USER_API_URL",
-  vocabulary: "NEXT_PUBLIC_VOCABULARY_API_URL",
-  vocabularyProgress: "NEXT_PUBLIC_VOCABULARY_PROGRESS_API_URL"
-} as const;
+const DEFAULT_TIMEOUT_MS = 20000;
+const BACKEND_TIMEOUT_MESSAGE = "The Bolo English backend took too long to respond. Railway may still be waking up.";
+const BACKEND_CONNECTION_MESSAGE = "Could not reach the Bolo English backend. Check NEXT_PUBLIC_API_BASE_URL and Railway CORS.";
 
 export type ApiEndpointKey = keyof typeof endpointPaths;
+
+type ApiFetchOptions = RequestInit & {
+  timeoutMs?: number;
+};
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
 }
 
-function getApiOrigin() {
-  const configuredOrigin =
-    process.env.NEXT_PUBLIC_API_URL?.trim() ??
-    process.env.NEXT_PUBLIC_API_ORIGIN?.trim();
+function trimApiSuffix(value: string) {
+  return value.replace(/\/api$/i, "");
+}
 
-  if (configuredOrigin) {
-    return trimTrailingSlash(configuredOrigin);
+function isApiEndpointKey(value: string): value is ApiEndpointKey {
+  return Object.prototype.hasOwnProperty.call(endpointPaths, value);
+}
+
+function readApiErrorMessage(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string" &&
+    payload.message.includes("Application failed to respond")
+  ) {
+    return BACKEND_TIMEOUT_MESSAGE;
   }
 
-  throw new Error(
-    "API is not configured. Set NEXT_PUBLIC_API_URL to your deployed backend URL."
-  );
+  if (payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string") {
+    return payload.error;
+  }
+
+  if (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string") {
+    return payload.message;
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    if (payload.includes("Application failed to respond")) {
+      return BACKEND_TIMEOUT_MESSAGE;
+    }
+
+    return payload;
+  }
+
+  return fallback;
+}
+
+export class ApiRequestError extends Error {
+  status?: number;
+  payload?: unknown;
+
+  constructor(message: string, status?: number, payload?: unknown) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+export function getApiBaseUrl() {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
+  if (!configuredBaseUrl) {
+    throw new Error("API is not configured. Set NEXT_PUBLIC_API_BASE_URL to your deployed backend URL.");
+  }
+
+  return trimApiSuffix(trimTrailingSlash(configuredBaseUrl));
+}
+
+function resolveApiUrl(endpoint: ApiEndpointKey | string) {
+  if (isApiEndpointKey(endpoint)) {
+    return `${getApiBaseUrl()}${endpointPaths[endpoint]}`;
+  }
+
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  const normalizedPath = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return `${getApiBaseUrl()}${normalizedPath}`;
 }
 
 export function getApiUrl(endpoint: ApiEndpointKey) {
-  const override = endpointOverrides[endpoint]?.trim();
+  return resolveApiUrl(endpoint);
+}
 
-  if (override) {
-    return override;
+export function toApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiRequestError) {
+    return error.message;
   }
 
-  const apiOrigin = getApiOrigin();
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return BACKEND_TIMEOUT_MESSAGE;
+  }
 
-  return `${apiOrigin}${endpointPaths[endpoint]}`;
+  if (error instanceof TypeError) {
+    return BACKEND_CONNECTION_MESSAGE;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
-export async function correctSentence(sentence: string) {
-  const url = getApiUrl("correction");
 
-  const res = await fetch(url, {
+export async function apiFetchJson<T>(endpoint: ApiEndpointKey | string, options: ApiFetchOptions = {}) {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, ...init } = options;
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  const url = resolveApiUrl(endpoint);
+  const requestHeaders = new Headers(headers ?? undefined);
+
+  if (init.body && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      headers: requestHeaders,
+      signal: controller.signal
+    });
+    const contentType = response.headers.get("content-type") ?? "";
+    const payload = contentType.includes("application/json") ? await response.json().catch(() => null) : await response.text().catch(() => null);
+
+    if (!response.ok) {
+      throw new ApiRequestError(readApiErrorMessage(payload, `Request to ${url} failed.`), response.status, payload);
+    }
+
+    return payload as T;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
+export async function correctSentence(sentence: string) {
+  return apiFetchJson<{ result: string }>("correct", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify({ sentence })
   });
-
-  if (!res.ok) {
-    throw new Error("Correction request failed");
-  }
-
-  return res.json();
 }

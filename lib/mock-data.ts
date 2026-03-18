@@ -7,7 +7,7 @@ import {
   SkillProgress,
   VocabularyTerm,
   WeeklyGoal
-} from "@/lib/types";
+} from "./types";
 
 export const lessons: Lesson[] = [
   {

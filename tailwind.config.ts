@@ -1,25 +1,38 @@
-import type { Config } from "tailwindcss";
+﻿import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        ink: "#151515",
-        sand: "#f5efe4",
+        ink: "#15211b",
+        mist: "#f5fbf6",
+        forest: {
+          DEFAULT: "#0f8a4b",
+          dark: "#0c6d3b",
+          soft: "#dff4e5"
+        },
+        teal: "#0f8a4b",
+        sand: "#edf7ef",
         clay: "#d96f32",
-        teal: "#0d7a72",
-        gold: "#d8a321"
+        gold: "#d8a321",
+        sky: "#e8f1ff",
+        berry: "#b84147",
+        sun: "#f4c85a",
+        stone: "#617066",
+        cloud: "#ffffff"
       },
       fontFamily: {
-        display: ["Georgia", "serif"],
-        body: ["\"Trebuchet MS\"", "sans-serif"]
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"]
       },
       boxShadow: {
-        card: "0 18px 45px rgba(21, 21, 21, 0.12)"
+        card: "0 20px 60px rgba(15, 41, 23, 0.08)",
+        float: "0 24px 70px rgba(15, 41, 23, 0.14)"
       },
       backgroundImage: {
-        "hero-glow": "radial-gradient(circle at top, rgba(217, 111, 50, 0.18), transparent 45%), radial-gradient(circle at bottom right, rgba(13, 122, 114, 0.2), transparent 40%)"
+        "hero-glow":
+          "radial-gradient(circle at top left, rgba(15, 138, 75, 0.18), transparent 35%), radial-gradient(circle at bottom right, rgba(244, 200, 90, 0.18), transparent 32%)"
       }
     }
   },

@@ -1,101 +1,100 @@
-import Link from "next/link";
-import { LessonCard, ScenarioCard, VocabularyCard } from "@/components/cards";
-import { SectionTitle } from "@/components/section-title";
-import { lessons, scenarios, vocabularyTerms } from "@/lib/mock-data";
+﻿"use client";
 
-const highlights = [
-  "AI speaking practice with instant Hindi guidance",
-  "Pronunciation scoring with sound-level feedback",
-  "Vocabulary tracks for daily life, jobs, and business",
-  "Real conversation simulations from public to corporate settings"
-];
+import { BarChart3, CalendarClock, Map, MessagesSquare, Mic2, Trophy } from "lucide-react";
+import { CoursePreviewCard } from "@/components/course-preview-card";
+import { FeatureCard } from "@/components/feature-card";
+import { HomeHero } from "@/components/home-hero";
+import { HomeStepCard } from "@/components/home-step-card";
+import { SectionHeading } from "@/components/section-heading";
+import { TestimonialCard } from "@/components/testimonial-card";
+import { coursePreviewCards, featureCards, howItWorksSteps, testimonials } from "@/lib/app-data";
+
+const stepIcons = [BarChart3, CalendarClock, Mic2] as const;
+const featureIcons = [Mic2, BarChart3, Map, Trophy, CalendarClock, MessagesSquare] as const;
 
 export default function HomePage() {
   return (
     <main>
-      <section className="grid-pattern">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-          <div className="space-y-8">
-            <span className="inline-flex rounded-full border border-clay/20 bg-white/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-clay">
-              Hindi to English fluency
-            </span>
-            <div className="space-y-5">
-              <h1 className="max-w-3xl bg-hero-glow bg-clip-text font-display text-5xl leading-tight text-ink sm:text-6xl">
-                Learn English speaking from first sentence to boardroom confidence.
-              </h1>
-              <p className="max-w-2xl text-lg leading-8 text-ink/75">
-                Bolo English helps Hindi speakers build grammar, pronunciation, vocabulary, and live speaking confidence with structured AI-led practice.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/speaking" className="rounded-full bg-clay px-6 py-3 text-sm font-bold text-white hover:bg-clay/90">
-                Start Speaking Practice
-              </Link>
-              <Link href="/simulation" className="rounded-full border border-ink/15 px-6 py-3 text-sm font-bold text-ink hover:border-teal hover:text-teal">
-                Explore Simulations
-              </Link>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {highlights.map((highlight) => (
-                <div key={highlight} className="rounded-2xl border border-ink/10 bg-white/80 px-4 py-4 text-sm text-ink/75 shadow-card">
-                  {highlight}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-8 shadow-card">
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal">Learning Path</p>
-            <div className="mt-6 space-y-5">
-              {[
-                "Beginner: greetings, daily conversation, sentence basics",
-                "Intermediate: workplace English, confidence building, correction loops",
-                "Advanced: interviews, presentations, nuanced grammar",
-                "Professional: persuasion, leadership speaking, stakeholder communication"
-              ].map((step) => (
-                <div key={step} className="rounded-2xl bg-sand px-4 py-4 text-sm leading-6 text-ink/80">
-                  {step}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <HomeHero />
 
-      <section className="mx-auto max-w-7xl space-y-10 px-6 py-16">
-        <SectionTitle
-          eyebrow="Courses"
-          title="Structured speaking journeys for every stage"
-          description="Each path mixes AI conversation, Hindi explanation, and pronunciation checkpoints so learners can progress without getting lost."
-        />
-        <div className="grid gap-6 lg:grid-cols-4">
-          {lessons.map((lesson) => (
-            <LessonCard key={lesson.id} lesson={lesson} />
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl space-y-10 px-6 py-16">
-        <SectionTitle
-          eyebrow="Vocabulary"
-          title="Useful English, not just word lists"
-          description="Practice vocabulary in context with Hindi meaning, sentence usage, and category-based revision."
-        />
-        <div className="grid gap-6 lg:grid-cols-2">
-          {vocabularyTerms.slice(0, 2).map((term) => (
-            <VocabularyCard key={term.id} term={term} />
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl space-y-10 px-6 py-16">
-        <SectionTitle
-          eyebrow="Simulations"
-          title="Move from safe practice to real-world speaking pressure"
-          description="Conversation scenarios are designed to reflect the moments where Hindi speakers often hesitate in English."
+      <section id="how-it-works" className="section-shell space-y-10">
+        <SectionHeading
+          eyebrow="How It Works"
+          title="Kaise Kaam Karta Hai?"
+          subtitle="Simple. Structured. Spoken."
+          description="Shuruaat se confidence tak har step guided hai, isliye learner ko agla kaam sochna nahi padta."
+          align="center"
         />
         <div className="grid gap-6 lg:grid-cols-3">
-          {scenarios.map((scenario) => (
-            <ScenarioCard key={scenario.id} scenario={scenario} />
+          {howItWorksSteps.map((step, index) => {
+            const Icon = stepIcons[index];
+
+            return (
+              <HomeStepCard
+                key={step.id}
+                stepNumber={step.stepNumber}
+                title={step.title}
+                subtitle={step.hindiSubtitle}
+                description={step.description}
+                icon={Icon}
+                delay={index * 0.08}
+              />
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="section-shell space-y-10">
+        <SectionHeading
+          eyebrow="Success Stories"
+          title="Unki Kahani"
+          subtitle="Real learners, real results"
+          description="Lucknow, Patna, aur Bhopal jaise shahron se learners ne isi structure ke saath apni spoken English badli."
+          align="center"
+        />
+        <div className="grid gap-6 lg:grid-cols-3">
+          {testimonials.map((testimonial, index) => (
+            <TestimonialCard key={testimonial.name} {...testimonial} delay={index * 0.08} />
+          ))}
+        </div>
+      </section>
+
+      <section className="section-shell space-y-10">
+        <SectionHeading
+          eyebrow="Platform Features"
+          title="Kya Milega Tumhe?"
+          subtitle="Everything you need to go fluent"
+          description="Bolo English ko aise design kiya gaya hai ki learner ko alag-alag apps ya random YouTube hopping ki zaroorat hi na pade."
+          align="center"
+        />
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {featureCards.map((feature, index) => {
+            const Icon = featureIcons[index];
+
+            return <FeatureCard key={feature.id} title={feature.title} subtitle={feature.hindiSubtitle} description={feature.description} icon={Icon} delay={index * 0.05} />;
+          })}
+        </div>
+      </section>
+
+      <section className="section-shell space-y-10">
+        <SectionHeading
+          eyebrow="Course Preview"
+          title="Level-wise Lessons"
+          subtitle="Har stage ke liye ready-made speaking paths"
+          description="Existing learning paths ko redesign karke action-first cards mein rakha gaya hai, taaki learner seedha practice shuru kar sake."
+        />
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+          {coursePreviewCards.map((course, index) => (
+            <CoursePreviewCard
+              key={course.id}
+              level={course.level}
+              title={course.title}
+              subtitle={course.hindiSubtitle}
+              duration={course.duration}
+              description={course.description}
+              href={course.href}
+              delay={index * 0.06}
+            />
           ))}
         </div>
       </section>
