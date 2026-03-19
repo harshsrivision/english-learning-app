@@ -1,35 +1,43 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { open, type Database } from "sqlite";
 import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 
-export async function initDB() {
-  const db = await open({
-    filename: "./database.db",
-    driver: sqlite3.Database
-  });
+type AppDatabase = Database;
+type TableInfoRow = { name: string };
 
+let dbPromise: Promise<AppDatabase> | null = null;
+
+function resolveDatabasePath() {
+  const serverDatabasePath = resolve(process.cwd(), "server", "database.db");
+
+  if (existsSync(serverDatabasePath)) {
+    return serverDatabasePath;
+  }
+
+  return resolve(process.cwd(), "database.db");
+}
+
+async function prepareDatabase(db: AppDatabase) {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
-      email TEXT,
+      email TEXT UNIQUE,
       password TEXT,
       created_at TEXT,
       level TEXT,
       streak INTEGER DEFAULT 0
-    )
-  `);
+    );
 
-  await db.exec(`
     CREATE TABLE IF NOT EXISTS progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       lesson TEXT,
       score INTEGER,
       completed_at TEXT
-    )
-  `);
+    );
 
-  await db.exec(`
     CREATE TABLE IF NOT EXISTS daily_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -37,31 +45,27 @@ export async function initDB() {
       sentences_spoken INTEGER,
       words_learned INTEGER,
       lessons_completed INTEGER
-    )
-  `);
+    );
 
-  await db.exec(`
     CREATE TABLE IF NOT EXISTS vocabulary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       word TEXT,
       meaning TEXT,
       example TEXT
-    )
-  `);
+    );
 
-  await db.exec(`
     CREATE TABLE IF NOT EXISTS vocabulary_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       word_id INTEGER,
       last_seen TEXT,
       correct_count INTEGER DEFAULT 0
-    )
+    );
   `);
 
-  const userColumns = await db.all<{ name: string }[]>("PRAGMA table_info(users)");
+  const userColumns = await db.all<TableInfoRow[]>("PRAGMA table_info(users)");
   const userColumnNames = new Set(userColumns.map((column) => column.name));
-  const progressColumns = await db.all<{ name: string }[]>("PRAGMA table_info(progress)");
+  const progressColumns = await db.all<TableInfoRow[]>("PRAGMA table_info(progress)");
   const progressColumnNames = new Set(progressColumns.map((column) => column.name));
 
   if (!userColumnNames.has("email")) {
@@ -93,21 +97,37 @@ export async function initDB() {
   await db.exec("CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date ON daily_progress(user_id, date)");
   await db.exec("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
 
-  const vocabularyCount = await db.get<{ count: number }>("SELECT COUNT(*) AS count FROM vocabulary");
+  const vocabCount = await db.get<{ count: number }>("SELECT COUNT(*) AS count FROM vocabulary");
 
-  if ((vocabularyCount?.count ?? 0) === 0) {
+  if ((vocabCount?.count ?? 0) === 0) {
     await db.run("INSERT INTO vocabulary (word, meaning, example) VALUES (?, ?, ?)", [
       "Opportunity",
       "\u0905\u0935\u0938\u0930",
       "This is a great opportunity."
     ]);
-
     await db.run("INSERT INTO vocabulary (word, meaning, example) VALUES (?, ?, ?)", [
       "Improve",
       "\u0938\u0941\u0927\u093e\u0930\u0928\u093e",
       "I want to improve my English."
     ]);
   }
+}
 
-  return db;
+export async function initDB() {
+  if (!dbPromise) {
+    dbPromise = open({
+      filename: resolveDatabasePath(),
+      driver: sqlite3.Database
+    })
+      .then(async (db) => {
+        await prepareDatabase(db);
+        return db;
+      })
+      .catch((error) => {
+        dbPromise = null;
+        throw error;
+      });
+  }
+
+  return dbPromise;
 }
