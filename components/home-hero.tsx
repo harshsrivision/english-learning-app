@@ -3,9 +3,8 @@
 import { motion } from "framer-motion";
 import { MessageCircleMore, Mic2, PlayCircle, Sparkles, Volume2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { homeTrustLine } from "@/lib/app-data";
-import { getStoredUserId } from "@/lib/user-session";
+import { useUserSession } from "@/lib/use-user-session";
 
 function VoiceBar({ delay }: { delay: number }) {
   return (
@@ -18,16 +17,12 @@ function VoiceBar({ delay }: { delay: number }) {
 }
 
 export function HomeHero() {
-  const [hasSession, setHasSession] = useState(false);
-
-  useEffect(() => {
-    setHasSession(Boolean(getStoredUserId()));
-  }, []);
+  const { hasSession } = useUserSession();
 
   const primaryHref = hasSession ? "/dashboard" : "/signup";
   const primaryLabel = hasSession ? "Continue Learning" : "Create Free Account";
-  const secondaryHref = hasSession ? "/speaking" : "/signup";
-  const secondaryLabel = hasSession ? "Open Speaking Lab" : "Start Speaking";
+  const secondaryHref = "/speaking";
+  const secondaryLabel = hasSession ? "Open Speaking Lab" : "Try Speaking Practice";
 
   return (
     <section className="hero-grid overflow-hidden">

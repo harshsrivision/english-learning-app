@@ -1,25 +1,30 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { RoadmapLevelCard } from "@/components/roadmap-level-card";
 import { SectionHeading } from "@/components/section-heading";
 import { roadmapLevels, type CefrLevel } from "@/lib/app-data";
-import { getCurrentCefrLevel, getLevelIndex, readLearnerProgress } from "@/lib/local-progress";
+import { getCurrentCefrLevel, getLevelIndex } from "@/lib/local-progress";
+import { useLearnerProgress } from "@/lib/use-learner-progress";
 
 export default function RoadmapPage() {
-  const [openLevel, setOpenLevel] = useState<CefrLevel>(roadmapLevels[0]?.level ?? "A0");
-  const [currentLevel, setCurrentLevel] = useState<CefrLevel>("A0");
+  const { progress } = useLearnerProgress();
+  const [selectedOpenLevel, setSelectedOpenLevel] = useState<CefrLevel | null>(null);
+  const [hasChosenOpenLevel, setHasChosenOpenLevel] = useState(false);
 
-  useEffect(() => {
-    const progress = readLearnerProgress();
-    const level = getCurrentCefrLevel(progress.totalXp);
-    setCurrentLevel(level);
-    setOpenLevel(level);
-  }, []);
-
+  const currentLevel = progress ? getCurrentCefrLevel(progress.totalXp) : "A0";
   const currentLevelIndex = getLevelIndex(currentLevel);
+  const openLevel = hasChosenOpenLevel ? selectedOpenLevel : currentLevel;
+
+  if (!progress) {
+    return (
+      <main className="section-shell">
+        <div className="surface-card p-6 text-sm text-stone">Roadmap loading ho raha hai...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="section-shell space-y-10">
@@ -80,7 +85,10 @@ export default function RoadmapPage() {
               active={active}
               mobile
               expanded={expanded}
-              onToggle={() => setOpenLevel((current) => (current === level.level ? "A0" : level.level))}
+              onToggle={() => {
+                setHasChosenOpenLevel(true);
+                setSelectedOpenLevel((current) => (current === level.level ? null : level.level));
+              }}
             />
           );
         })}

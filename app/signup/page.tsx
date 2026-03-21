@@ -1,18 +1,34 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { motion } from "framer-motion";
 import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardAccountForm } from "@/components/dashboard-account-form";
-import { getStoredUserId } from "@/lib/user-session";
+import { getSafeRedirectPath } from "@/lib/auth-navigation";
+import { useUserSession } from "@/lib/use-user-session";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasSession, isChecking } = useUserSession();
+  const redirectPath = getSafeRedirectPath(searchParams.get("next"));
+
   useEffect(() => {
-    if (getStoredUserId()) {
-      window.location.href = "/dashboard";
+    if (!isChecking && hasSession) {
+      router.replace(redirectPath);
     }
-  }, []);
+  }, [hasSession, isChecking, redirectPath, router]);
+
+  if (isChecking || hasSession) {
+    return (
+      <main className="section-shell">
+        <div className="surface-card p-8 text-sm text-stone">
+          {isChecking ? "Checking your saved learner session..." : "Your session is already active. Opening your learning flow..."}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="section-shell">
@@ -41,7 +57,7 @@ export default function SignupPage() {
           <DashboardAccountForm />
           <p className="text-center text-sm text-stone">
             Already have an account?{" "}
-            <Link href={"/login" as Route} aria-label="Open login page" className="font-semibold text-forest hover:text-forest-dark">
+            <Link href={{ pathname: "/login", query: redirectPath !== "/dashboard" ? { next: redirectPath } : undefined }} aria-label="Open login page" className="font-semibold text-forest hover:text-forest-dark">
               Log in
             </Link>
           </p>

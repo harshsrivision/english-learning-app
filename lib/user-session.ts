@@ -1,13 +1,9 @@
+﻿import { dispatchUserSessionChanged } from "@/lib/browser-events";
+
 export const userIdStorageKey = "userId";
-const legacyUserIdStorageKey = "bolo-user-id";
+export const legacyUserIdStorageKey = "bolo-user-id";
 
-export function getStoredUserId() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const storedValue = window.localStorage.getItem(userIdStorageKey) ?? window.localStorage.getItem(legacyUserIdStorageKey);
-
+function parseStoredUserId(storedValue: string | null) {
   if (!storedValue) {
     return null;
   }
@@ -17,6 +13,14 @@ export function getStoredUserId() {
   return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
 }
 
+export function getStoredUserId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return parseStoredUserId(window.localStorage.getItem(userIdStorageKey) ?? window.localStorage.getItem(legacyUserIdStorageKey));
+}
+
 export function storeUserId(userId: number) {
   if (typeof window === "undefined") {
     return;
@@ -24,6 +28,7 @@ export function storeUserId(userId: number) {
 
   window.localStorage.setItem(userIdStorageKey, String(userId));
   window.localStorage.removeItem(legacyUserIdStorageKey);
+  dispatchUserSessionChanged(userId);
 }
 
 export function clearStoredUserId() {
@@ -33,4 +38,5 @@ export function clearStoredUserId() {
 
   window.localStorage.removeItem(userIdStorageKey);
   window.localStorage.removeItem(legacyUserIdStorageKey);
+  dispatchUserSessionChanged(null);
 }

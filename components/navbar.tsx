@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LogOut, Menu, Mic2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { clearStoredUserId, getStoredUserId } from "@/lib/user-session";
+import { clearStoredUserId } from "@/lib/user-session";
+import { useUserSession } from "@/lib/use-user-session";
 
 const learnLinks = [
   { href: "/lessons", label: "Lessons" },
@@ -19,6 +20,11 @@ const practiceLinks = [
   { href: "/simulation", label: "Simulations" }
 ] as const;
 
+type NavbarContentProps = {
+  pathname: string;
+  hasSession: boolean;
+};
+
 function getLinkClass(isActive: boolean) {
   return `relative inline-flex items-center pb-1 text-sm font-semibold transition ${
     isActive
@@ -27,32 +33,18 @@ function getLinkClass(isActive: boolean) {
   }`;
 }
 
-export function Navbar() {
-  const pathname = usePathname();
+function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLearnOpen, setIsLearnOpen] = useState(false);
   const [isPracticeOpen, setIsPracticeOpen] = useState(false);
   const [isMobileLearnOpen, setIsMobileLearnOpen] = useState(false);
   const [isMobilePracticeOpen, setIsMobilePracticeOpen] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
   const learnRef = useRef<HTMLDivElement | null>(null);
   const practiceRef = useRef<HTMLDivElement | null>(null);
 
   const isLearnActive = learnLinks.some((link) => pathname.startsWith(link.href));
   const isPracticeActive = practiceLinks.some((link) => pathname.startsWith(link.href));
   const isSpeakingActive = pathname.startsWith("/speaking");
-
-  useEffect(() => {
-    setHasSession(Boolean(getStoredUserId()));
-  }, [pathname]);
-
-  useEffect(() => {
-    setIsDrawerOpen(false);
-    setIsLearnOpen(false);
-    setIsPracticeOpen(false);
-    setIsMobileLearnOpen(false);
-    setIsMobilePracticeOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -71,7 +63,6 @@ export function Navbar() {
 
   function handleLogout() {
     clearStoredUserId();
-    setHasSession(false);
     window.location.href = "/login";
   }
 
@@ -332,4 +323,11 @@ export function Navbar() {
       </AnimatePresence>
     </header>
   );
+}
+
+export function Navbar() {
+  const pathname = usePathname();
+  const { hasSession } = useUserSession();
+
+  return <NavbarContent key={pathname} pathname={pathname} hasSession={hasSession} />;
 }

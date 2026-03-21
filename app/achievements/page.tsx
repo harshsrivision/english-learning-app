@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
 import { SectionHeading } from "@/components/section-heading";
-import { getCurrentCefrLevel, readLearnerProgress } from "@/lib/local-progress";
+import { getCurrentCefrLevel, type LearnerProgress } from "@/lib/local-progress";
+import { useLearnerProgress } from "@/lib/use-learner-progress";
 
 type Badge = {
   id: string;
@@ -128,42 +128,47 @@ const badgeNameToId: Record<string, string> = {
   "C1 Champion": "c1-champion"
 };
 
-export default function AchievementsPage() {
-  const [earnedIds, setEarnedIds] = useState<Set<string>>(new Set());
-  const [totalXp, setTotalXp] = useState(0);
+function getEarnedBadgeIds(progress: LearnerProgress) {
+  const earned = new Set<string>();
 
-  useEffect(() => {
-    const progress = readLearnerProgress();
-    const earned = new Set<string>();
-
-    setTotalXp(progress.totalXp);
-
-    for (const badgeName of progress.badges) {
-      const id = badgeNameToId[badgeName];
-      if (id) {
-        earned.add(id);
-      }
+  for (const badgeName of progress.badges) {
+    const id = badgeNameToId[badgeName];
+    if (id) {
+      earned.add(id);
     }
+  }
 
-    if (progress.lessonsCompleted >= 1) earned.add("starter-spark");
-    if (progress.speakingMinutes >= 5) earned.add("mic-friend");
-    if (progress.vocabularyWords >= 100) earned.add("100-words");
-    if (progress.weeklyStats.roleplays >= 1) earned.add("first-conversation");
-    if (progress.streakDays >= 3) earned.add("3-day-streak");
-    if (progress.streakDays >= 7) earned.add("week-warrior");
-    if (progress.streakDays >= 30) earned.add("monthly-master");
-    if (progress.weeklyStats.vocabularyWords >= 50) earned.add("vocab-sprint-winner");
-    if (progress.weeklyStats.perfectGrammarDays >= 5) earned.add("grammar-star");
-    if (progress.speakingMinutes >= 600) earned.add("speaking-milestone");
-    if (progress.totalXp >= 180) earned.add("a1-graduate");
-    if (getCurrentCefrLevel(progress.totalXp) === "C1") earned.add("c1-champion");
+  if (progress.lessonsCompleted >= 1) earned.add("starter-spark");
+  if (progress.speakingMinutes >= 5) earned.add("mic-friend");
+  if (progress.vocabularyWords >= 100) earned.add("100-words");
+  if (progress.weeklyStats.roleplays >= 1) earned.add("first-conversation");
+  if (progress.streakDays >= 3) earned.add("3-day-streak");
+  if (progress.streakDays >= 7) earned.add("week-warrior");
+  if (progress.streakDays >= 30) earned.add("monthly-master");
+  if (progress.weeklyStats.vocabularyWords >= 50) earned.add("vocab-sprint-winner");
+  if (progress.weeklyStats.perfectGrammarDays >= 5) earned.add("grammar-star");
+  if (progress.speakingMinutes >= 600) earned.add("speaking-milestone");
+  if (progress.totalXp >= 180) earned.add("a1-graduate");
+  if (getCurrentCefrLevel(progress.totalXp) === "C1") earned.add("c1-champion");
 
-    setEarnedIds(earned);
-  }, []);
+  return earned;
+}
 
+export default function AchievementsPage() {
+  const { progress } = useLearnerProgress();
+
+  if (!progress) {
+    return (
+      <main className="section-shell">
+        <div className="surface-card p-6 text-sm text-stone">Achievements loading ho rahe hain...</div>
+      </main>
+    );
+  }
+
+  const earnedIds = getEarnedBadgeIds(progress);
   const earnedCount = earnedIds.size;
   const progressPercent = allBadges.length ? Math.round((earnedCount / allBadges.length) * 100) : 0;
-  const currentLevel = getCurrentCefrLevel(totalXp);
+  const currentLevel = getCurrentCefrLevel(progress.totalXp);
 
   return (
     <main className="section-shell space-y-10">
@@ -189,7 +194,7 @@ export default function AchievementsPage() {
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Total XP</p>
-            <p className="mt-3 text-3xl font-bold text-ink">{totalXp.toLocaleString()}</p>
+            <p className="mt-3 text-3xl font-bold text-ink">{progress.totalXp.toLocaleString()}</p>
             <p className="mt-2 text-sm text-stone">All tracked progress from your local learner history.</p>
           </div>
           <div>
