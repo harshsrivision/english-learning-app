@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetchJson, getApiUrl, toApiErrorMessage } from "@/lib/api";
@@ -10,13 +10,8 @@ type Lesson = {
   level: string;
   title: string;
   example: string;
-};
-
-type LessonProgressRow = {
-  lesson: string;
-  score: number | null;
-  completed_at: string | null;
-  error?: string;
+  isUnlocked: boolean;
+  isCompleted: boolean;
 };
 
 type LessonProgressResponse = {
@@ -24,6 +19,8 @@ type LessonProgressResponse = {
   alreadyCompleted?: boolean;
   currentStreak?: number;
   lessonsCompletedToday?: number;
+  nextLessonId?: number | null;
+  nextLessonUnlocked?: boolean;
   error?: string;
 };
 
@@ -84,17 +81,23 @@ function getSpeechRecognitionConstructor() {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 }
 
-function getNextUnlockedLessonId(lessonList: Lesson[], completedIds: number[]) {
-  const completedIdSet = new Set(completedIds);
-  const nextIncompleteLesson = lessonList.find((lesson) => !completedIdSet.has(lesson.id));
+function getDefaultLessonId(lessonList: Lesson[]) {
+  return lessonList.find((lesson) => lesson.isUnlocked && !lesson.isCompleted)?.id ?? lessonList.find((lesson) => lesson.isUnlocked)?.id ?? lessonList[0]?.id ?? null;
+}
 
-  return nextIncompleteLesson?.id ?? lessonList[0]?.id ?? null;
+function getRequiredPreviousLessonTitle(lessonList: Lesson[], lessonId: number) {
+  const lessonIndex = lessonList.findIndex((lesson) => lesson.id === lessonId);
+
+  if (lessonIndex <= 0) {
+    return "the previous lesson";
+  }
+
+  return lessonList[lessonIndex - 1]?.title ?? "the previous lesson";
 }
 
 export default function LessonsPage() {
   const { isChecking, userId } = useRequiredUserId();
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [completedLessonIds, setCompletedLessonIds] = useState<number[]>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
   const [transcript, setTranscript] = useState("");
   const [analysis, setAnalysis] = useState<SentenceAnalysis | null>(null);
@@ -109,14 +112,12 @@ export default function LessonsPage() {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const stopRequestedRef = useRef(false);
 
-  const completedLessonIdSet = new Set(completedLessonIds);
-  const nextUnlockedLessonId = getNextUnlockedLessonId(lessons, completedLessonIds);
   const activeLesson =
     lessons.find((lesson) => lesson.id === selectedLessonId) ??
-    lessons.find((lesson) => lesson.id === nextUnlockedLessonId) ??
+    lessons.find((lesson) => lesson.id === getDefaultLessonId(lessons)) ??
     lessons[0] ??
     null;
-  const isActiveLessonCompleted = activeLesson ? completedLessonIdSet.has(activeLesson.id) : false;
+  const isActiveLessonCompleted = activeLesson?.isCompleted ?? false;
 
   useEffect(() => {
     const Recognition = getSpeechRecognitionConstructor();
@@ -139,35 +140,21 @@ export default function LessonsPage() {
         setIsLoading(true);
         setError(null);
 
-        const lessonsApiUrl = getApiUrl("lessons");
-        const lessonProgressApiUrl = getApiUrl("lessonProgress");
-        const [lessonData, progressData] = await Promise.all([
-          apiFetchJson<Lesson[] | { error?: string }>(lessonsApiUrl, { timeoutMs: 15000 }),
-          apiFetchJson<LessonProgressRow[] | { error?: string }>(`${lessonProgressApiUrl}/${userId}`, { timeoutMs: 15000 })
-        ]);
+        const lessonData = await apiFetchJson<Lesson[] | { error?: string }>(`${getApiUrl("lessons")}/${userId}`, { timeoutMs: 15000 });
 
         if (!Array.isArray(lessonData)) {
           throw new Error("Lesson request failed.");
-        }
-
-        if (!Array.isArray(progressData)) {
-          throw new Error("Lesson progress request failed.");
         }
 
         if (ignore) {
           return;
         }
 
-        const nextCompletedIds = progressData
-          .map((item) => Number(item.lesson))
-          .filter((lessonId) => Number.isInteger(lessonId) && lessonId > 0);
-
-        const defaultLessonId = getNextUnlockedLessonId(lessonData, nextCompletedIds);
+        const defaultLessonId = getDefaultLessonId(lessonData);
 
         setLessons(lessonData);
-        setCompletedLessonIds(nextCompletedIds);
         setSelectedLessonId((currentId) => {
-          if (currentId && lessonData.some((lesson) => lesson.id === currentId)) {
+          if (currentId && lessonData.some((lesson) => lesson.id === currentId && lesson.isUnlocked)) {
             return currentId;
           }
 
@@ -216,13 +203,9 @@ export default function LessonsPage() {
     setStatusMessage(null);
   }
 
-  function isLessonUnlocked(lessonId: number) {
-    return completedLessonIdSet.has(lessonId) || lessonId === nextUnlockedLessonId;
-  }
-
   function selectLesson(lesson: Lesson) {
-    if (!isLessonUnlocked(lesson.id)) {
-      setError(`Complete "${lessons.find((item) => item.id === nextUnlockedLessonId)?.title ?? "the previous lesson"}" first to unlock this lesson.`);
+    if (!lesson.isUnlocked) {
+      setError(`Complete "${getRequiredPreviousLessonTitle(lessons, lesson.id)}" first to unlock this lesson.`);
       setStatusMessage(null);
       return;
     }
@@ -370,7 +353,7 @@ export default function LessonsPage() {
       setAnalysis(analysisData);
       setStatusMessage(
         isActiveLessonCompleted
-          ? `Feedback is ready. "${activeLesson.title}" is already completed, and today's speaking progress was saved.`
+          ? `Feedback is ready. ✅ "${activeLesson.title}" is already completed, and today's speaking progress was saved.`
           : `Feedback is ready. Review it and then mark "${activeLesson.title}" complete.`
       );
     } catch (requestError) {
@@ -414,12 +397,48 @@ export default function LessonsPage() {
         });
       }
 
-      setCompletedLessonIds((currentIds) => (currentIds.includes(activeLesson.id) ? currentIds : [...currentIds, activeLesson.id]));
-      setStatusMessage(
-        completionData.alreadyCompleted
-          ? `"${activeLesson.title}" was already completed earlier.`
-          : `"${activeLesson.title}" is now complete${completionData.currentStreak ? ` and your streak is ${completionData.currentStreak} days.` : "."}`
+      const nextLessonTitle =
+        completionData.nextLessonId && lessons.some((lesson) => lesson.id === completionData.nextLessonId)
+          ? lessons.find((lesson) => lesson.id === completionData.nextLessonId)?.title ?? "the next lesson"
+          : null;
+
+      setLessons((currentLessons) =>
+        currentLessons.map((lesson) => {
+          if (lesson.id === activeLesson.id) {
+            return {
+              ...lesson,
+              isCompleted: true,
+              isUnlocked: true
+            };
+          }
+
+          if (completionData.nextLessonId && lesson.id === completionData.nextLessonId) {
+            return {
+              ...lesson,
+              isUnlocked: completionData.nextLessonUnlocked || lesson.isUnlocked
+            };
+          }
+
+          return lesson;
+        })
       );
+
+      if (completionData.alreadyCompleted) {
+        setStatusMessage(
+          completionData.nextLessonUnlocked && nextLessonTitle
+            ? `"${activeLesson.title}" was already completed earlier. "${nextLessonTitle}" is now unlocked.`
+            : `"${activeLesson.title}" was already completed earlier.`
+        );
+      } else {
+        const unlockSuffix = nextLessonTitle
+          ? completionData.nextLessonUnlocked
+            ? ` "${nextLessonTitle}" is now unlocked.`
+            : ` "${nextLessonTitle}" is ready next.`
+          : " You have completed the full lesson library.";
+        const streakSuffix = completionData.currentStreak ? ` Your streak is ${completionData.currentStreak} days.` : "";
+
+        setStatusMessage(`✅ "${activeLesson.title}" is now complete.${unlockSuffix}${streakSuffix}`);
+      }
     } catch (requestError) {
       const message = toApiErrorMessage(requestError, "Lesson completion failed.");
       setError(message);
@@ -435,34 +454,28 @@ export default function LessonsPage() {
         <h1 className="mt-4 font-display text-4xl text-ink">Practice each lesson by speaking, then get AI coaching.</h1>
         <p className="mt-3 text-base font-medium text-stone">Har lesson ko bolkar complete karo aur Hindi support ke saath improve karo</p>
         <p className="mt-4 max-w-3xl text-base leading-7 text-ink/75">
-          Complete lessons in order. Each lesson now has a sentence to repeat, speech capture or manual typing, AI feedback, and a completion step that updates your dashboard.
+          Complete lessons in order. ✅ Completed lessons stay reviewable, and 🔒 locked lessons open one by one as you finish each lesson.
         </p>
 
         {error ? <p className="mt-6 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}
         {statusMessage ? <p className="mt-4 rounded-2xl bg-teal/10 px-4 py-3 text-sm text-teal">{statusMessage}</p> : null}
 
         {isLoading ? (
-          <div className="mt-8 rounded-3xl border border-dashed border-ink/15 bg-sand/80 px-6 py-8 text-sm text-ink/65">
-            Loading lessons...
-          </div>
+          <div className="mt-8 rounded-3xl border border-dashed border-ink/15 bg-sand/80 px-6 py-8 text-sm text-ink/65">Loading lessons...</div>
         ) : !lessons.length ? (
-          <div className="mt-8 rounded-3xl border border-dashed border-ink/15 bg-sand/80 px-6 py-8 text-sm text-ink/65">
-            No lessons are available yet.
-          </div>
+          <div className="mt-8 rounded-3xl border border-dashed border-ink/15 bg-sand/80 px-6 py-8 text-sm text-ink/65">No lessons are available yet.</div>
         ) : (
           <div className="mt-8 space-y-8">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {lessons.map((lesson) => {
                 const isSelected = lesson.id === activeLesson?.id;
-                const isCompleted = completedLessonIdSet.has(lesson.id);
-                const isUnlocked = isLessonUnlocked(lesson.id);
 
                 return (
                   <article
                     key={lesson.id}
                     className={`rounded-[2rem] border p-6 shadow-sm transition ${
                       isSelected ? "border-teal bg-white" : "border-ink/10 bg-sand/80"
-                    } ${!isUnlocked ? "opacity-70" : ""}`}
+                    } ${!lesson.isUnlocked ? "opacity-70" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -472,10 +485,10 @@ export default function LessonsPage() {
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-bold ${
-                          isCompleted ? "bg-teal/10 text-teal" : isUnlocked ? "bg-white text-ink/70" : "bg-ink/10 text-ink/55"
+                          lesson.isCompleted ? "bg-teal/10 text-teal" : lesson.isUnlocked ? "bg-white text-ink/70" : "bg-ink/10 text-ink/55"
                         }`}
                       >
-                        {isCompleted ? "Completed" : isUnlocked ? "Unlocked" : "Locked"}
+                        {lesson.isCompleted ? "✅ Completed" : lesson.isUnlocked ? "Ready" : "🔒 Locked"}
                       </span>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-ink/75">{lesson.example}</p>
@@ -483,10 +496,10 @@ export default function LessonsPage() {
                       type="button"
                       aria-label={`Select ${lesson.title}`}
                       onClick={() => selectLesson(lesson)}
-                      disabled={!isUnlocked}
+                      disabled={!lesson.isUnlocked}
                       className="mt-6 rounded-full bg-clay px-5 py-3 text-sm font-bold text-white hover:bg-clay/90 disabled:cursor-not-allowed disabled:bg-clay/40"
                     >
-                      {isSelected ? "Selected" : isCompleted ? "Review Lesson" : isUnlocked ? "Start Lesson" : "Complete Previous Lesson"}
+                      {lesson.isCompleted ? "Review Lesson" : lesson.isUnlocked ? "Start Lesson" : "🔒 Locked"}
                     </button>
                   </article>
                 );
@@ -573,7 +586,7 @@ export default function LessonsPage() {
                     <p className="text-sm font-semibold text-gold">Completion status</p>
                     <p className="mt-3 text-sm leading-6 text-white/80">
                       {isActiveLessonCompleted
-                        ? "This lesson is already complete. You can still re-practice the sentence and save another spoken attempt."
+                        ? "✅ This lesson is already complete. You can still re-practice the sentence and save another spoken attempt."
                         : analysis
                           ? "Feedback is ready. Mark this lesson complete to unlock the next one."
                           : "Speak or type your answer first. After analysis, you can mark this lesson complete."}
@@ -634,16 +647,3 @@ export default function LessonsPage() {
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

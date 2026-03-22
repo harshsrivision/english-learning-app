@@ -36,7 +36,7 @@ function createSqliteAdapter(db: DatabaseSync): AppDatabase {
     dialect: "sqlite",
     async query<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) {
       const normalizedSql = normalizeSqliteSql(sql).trim();
-      const sqliteParams = params as (string | number | bigint | Uint8Array | null | boolean)[];
+      const sqliteParams = params.map((param) => (typeof param === "boolean" ? Number(param) : param)) as (string | number | bigint | Uint8Array | null)[];
 
       if (/\bRETURNING\s+id\s*$/i.test(normalizedSql)) {
         const statement = db.prepare(normalizedSql.replace(/\s+RETURNING\s+id\s*$/i, ""));

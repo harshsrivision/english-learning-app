@@ -22,7 +22,7 @@ function createSqliteAdapter(db) {
         dialect: "sqlite",
         async query(sql, params = []) {
             const normalizedSql = normalizeSqliteSql(sql).trim();
-            const sqliteParams = params;
+            const sqliteParams = params.map((param) => (typeof param === "boolean" ? Number(param) : param));
             if (/\bRETURNING\s+id\s*$/i.test(normalizedSql)) {
                 const statement = db.prepare(normalizedSql.replace(/\s+RETURNING\s+id\s*$/i, ""));
                 const result = statement.run(...sqliteParams);
@@ -53,16 +53,20 @@ async function preparePostgresDatabase(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS daily_progress (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, sentences_spoken INTEGER, words_learned INTEGER, lessons_completed INTEGER)`);
     await db.query(`CREATE TABLE IF NOT EXISTS vocabulary (id SERIAL PRIMARY KEY, word TEXT, meaning TEXT, example TEXT)`);
     await db.query(`CREATE TABLE IF NOT EXISTS vocabulary_progress (id SERIAL PRIMARY KEY, user_id INTEGER, word_id INTEGER, last_seen TEXT, correct_count INTEGER DEFAULT 0)`);
+    await db.query(`CREATE TABLE IF NOT EXISTS user_lessons (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, is_unlocked BOOLEAN NOT NULL DEFAULT FALSE)`);
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS level TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0");
     await db.query("ALTER TABLE progress ADD COLUMN IF NOT EXISTS completed_at TEXT");
+    await db.query("ALTER TABLE user_lessons ADD COLUMN IF NOT EXISTS is_unlocked BOOLEAN DEFAULT FALSE");
     await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_progress_user_lesson ON progress(user_id, lesson)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date ON daily_progress(user_id, date)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
+    await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
 }
 function prepareSqliteDatabase(db) {
     db.exec(`
@@ -107,9 +111,17 @@ function prepareSqliteDatabase(db) {
       last_seen TEXT,
       correct_count INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS user_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lesson_id INTEGER NOT NULL,
+      is_unlocked INTEGER NOT NULL DEFAULT 0
+    );
   `);
     const userColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((column) => column.name));
     const progressColumns = new Set(db.prepare("PRAGMA table_info(progress)").all().map((column) => column.name));
+    const userLessonColumns = new Set(db.prepare("PRAGMA table_info(user_lessons)").all().map((column) => column.name));
     if (!userColumns.has("email")) {
         db.exec("ALTER TABLE users ADD COLUMN email TEXT");
     }
@@ -128,10 +140,15 @@ function prepareSqliteDatabase(db) {
     if (!progressColumns.has("completed_at")) {
         db.exec("ALTER TABLE progress ADD COLUMN completed_at TEXT");
     }
+    if (!userLessonColumns.has("is_unlocked")) {
+        db.exec("ALTER TABLE user_lessons ADD COLUMN is_unlocked INTEGER NOT NULL DEFAULT 0");
+    }
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_progress_user_lesson ON progress(user_id, lesson)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date ON daily_progress(user_id, date)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
 }
 async function seedVocabulary(db) {
     const existingTerms = await db.query("SELECT id, word, meaning, example FROM vocabulary");
