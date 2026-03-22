@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isChecking && hasSession) {
-      router.replace(redirectPath);
+      router.replace(redirectPath as any);
     }
   }, [hasSession, isChecking, redirectPath, router]);
 
