@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       activateLearnerProgress(data.userId);
       storeUserId(data.userId);
-      router.replace(redirectPath);
+      router.replace(redirectPath as any);
     } catch (requestError) {
       setError(toApiErrorMessage(requestError, "Login failed."));
     } finally {
