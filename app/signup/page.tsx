@@ -1,24 +1,35 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { motion } from "framer-motion";
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardAccountForm } from "@/components/dashboard-account-form";
-import { getSafeRedirectPath } from "@/lib/auth-navigation";
+import { buildLoginHref, defaultAuthenticatedPath, readRedirectPathFromLocation } from "@/lib/auth-navigation";
 import { useUserSession } from "@/lib/use-user-session";
 
 export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { hasSession, isChecking } = useUserSession();
-  const redirectPath = getSafeRedirectPath(searchParams.get("next"));
 
   useEffect(() => {
     if (!isChecking && hasSession) {
-      router.replace(redirectPath);
+      router.replace(readRedirectPathFromLocation() as Route);
     }
-  }, [hasSession, isChecking, redirectPath, router]);
+  }, [hasSession, isChecking, router]);
+
+  function openLogin(event: MouseEvent<HTMLAnchorElement>) {
+    const redirectPath = readRedirectPathFromLocation();
+
+    if (redirectPath === defaultAuthenticatedPath) {
+      return;
+    }
+
+    event.preventDefault();
+    router.push(buildLoginHref(redirectPath) as Route);
+  }
 
   if (isChecking || hasSession) {
     return (
@@ -57,7 +68,7 @@ export default function SignupPage() {
           <DashboardAccountForm />
           <p className="text-center text-sm text-stone">
             Already have an account?{" "}
-            <Link href={{ pathname: "/login", query: redirectPath !== "/dashboard" ? { next: redirectPath } : undefined }} aria-label="Open login page" className="font-semibold text-forest hover:text-forest-dark">
+            <Link href="/login" onClick={openLogin} aria-label="Open login page" className="font-semibold text-forest hover:text-forest-dark">
               Log in
             </Link>
           </p>

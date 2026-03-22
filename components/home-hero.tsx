@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { MessageCircleMore, Mic2, PlayCircle, Sparkles, Volume2 } from "lucide-react";
@@ -17,10 +17,10 @@ function VoiceBar({ delay }: { delay: number }) {
 }
 
 export function HomeHero() {
-  const { hasSession } = useUserSession();
+  const { hasSession, isChecking } = useUserSession();
 
-  const primaryHref = hasSession ? "/dashboard" : "/signup";
-  const primaryLabel = hasSession ? "Continue Learning" : "Create Free Account";
+  const primaryHref = isChecking ? "/roadmap" : hasSession ? "/dashboard" : "/signup";
+  const primaryLabel = isChecking ? "Explore Roadmap" : hasSession ? "Continue Learning" : "Create Free Account";
   const secondaryHref = "/speaking";
   const secondaryLabel = hasSession ? "Open Speaking Lab" : "Try Speaking Practice";
 
@@ -103,7 +103,7 @@ export function HomeHero() {
               <div className="flex items-center justify-between rounded-[1.5rem] bg-ink px-5 py-4 text-white">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-white/65">AI Coach</p>
-                  <p className="mt-2 text-sm font-semibold">Bolke dikhao: “Tell me about yourself.”</p>
+                  <p className="mt-2 text-sm font-semibold">Bolke dikhao: &quot;Tell me about yourself.&quot;</p>
                 </div>
                 <Sparkles className="h-5 w-5 text-sun" />
               </div>
@@ -141,7 +141,7 @@ export function HomeHero() {
                     <p className="text-sm font-semibold text-ink">Pronunciation score</p>
                   </div>
                   <p className="mt-2 text-2xl font-bold text-ink">8.6/10</p>
-                  <p className="mt-2 text-sm text-stone">“th” sound ko aur soft bolna hai.</p>
+                  <p className="mt-2 text-sm text-stone">&quot;th&quot; sound ko aur soft bolna hai.</p>
                 </div>
                 <div className="rounded-[1.5rem] bg-sky p-4">
                   <div className="flex items-center gap-2 text-ink">

@@ -1,8 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
+import type { Route } from "next";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { KeyRound, Mail, UserRound } from "lucide-react";
+import { readRedirectPathFromLocation } from "@/lib/auth-navigation";
 import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
@@ -13,6 +16,7 @@ type CreateUserResponse = {
 };
 
 export function DashboardAccountForm() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,7 +53,7 @@ export function DashboardAccountForm() {
 
       activateLearnerProgress(data.userId);
       storeUserId(data.userId);
-      window.location.href = "/dashboard";
+      router.replace(readRedirectPathFromLocation() as Route);
     } catch (requestError) {
       setError(toApiErrorMessage(requestError, "User creation failed."));
     } finally {

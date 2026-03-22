@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LogOut, Menu, Mic2, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { clearStoredUserId } from "@/lib/user-session";
 import { useUserSession } from "@/lib/use-user-session";
@@ -23,6 +23,7 @@ const practiceLinks = [
 type NavbarContentProps = {
   pathname: string;
   hasSession: boolean;
+  isChecking: boolean;
 };
 
 function getLinkClass(isActive: boolean) {
@@ -33,7 +34,8 @@ function getLinkClass(isActive: boolean) {
   }`;
 }
 
-function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
+function NavbarContent({ pathname, hasSession, isChecking }: NavbarContentProps) {
+  const router = useRouter();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLearnOpen, setIsLearnOpen] = useState(false);
   const [isPracticeOpen, setIsPracticeOpen] = useState(false);
@@ -63,8 +65,93 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
 
   function handleLogout() {
     clearStoredUserId();
-    window.location.href = "/login";
+    setIsDrawerOpen(false);
+    router.replace("/login");
   }
+
+  const desktopAuthActions = isChecking ? (
+    <div className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-stone">
+      Loading account...
+    </div>
+  ) : hasSession ? (
+    <>
+      <Link
+        href="/dashboard"
+        aria-label="Open your dashboard"
+        className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink transition hover:border-forest/40 hover:text-forest"
+      >
+        Continue
+      </Link>
+      <button
+        type="button"
+        aria-label="Log out of your account"
+        onClick={handleLogout}
+        className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
+      >
+        <LogOut className="h-4 w-4" />
+        Log out
+      </button>
+    </>
+  ) : (
+    <>
+      <Link
+        href="/login"
+        aria-label="Log in to your account"
+        className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink transition hover:border-forest/40 hover:text-forest"
+      >
+        Login
+      </Link>
+      <Link
+        href="/signup"
+        aria-label="Create a free account"
+        className="inline-flex items-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
+      >
+        Start Free
+      </Link>
+    </>
+  );
+
+  const mobileAuthActions = isChecking ? (
+    <div className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-stone">
+      Loading account...
+    </div>
+  ) : hasSession ? (
+    <>
+      <Link
+        href="/dashboard"
+        aria-label="Open your dashboard"
+        className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink"
+      >
+        Continue
+      </Link>
+      <button
+        type="button"
+        aria-label="Log out of your account"
+        onClick={handleLogout}
+        className="inline-flex items-center justify-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
+      >
+        <LogOut className="h-4 w-4" />
+        Log out
+      </button>
+    </>
+  ) : (
+    <>
+      <Link
+        href="/login"
+        aria-label="Log in to your account"
+        className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink"
+      >
+        Login
+      </Link>
+      <Link
+        href="/signup"
+        aria-label="Create a free account"
+        className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
+      >
+        Start Free
+      </Link>
+    </>
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink/10 bg-white/95 backdrop-blur">
@@ -158,45 +245,7 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
           </Link>
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
-          {hasSession ? (
-            <>
-              <Link
-                href="/dashboard"
-                aria-label="Open your dashboard"
-                className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink transition hover:border-forest/40 hover:text-forest"
-              >
-                Continue
-              </Link>
-              <button
-                type="button"
-                aria-label="Log out of your account"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
-              >
-                <LogOut className="h-4 w-4" />
-                Log out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                aria-label="Log in to your account"
-                className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink transition hover:border-forest/40 hover:text-forest"
-              >
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                aria-label="Create a free account"
-                className="inline-flex items-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
-              >
-                Start Free
-              </Link>
-            </>
-          )}
-        </div>
+        <div className="hidden items-center gap-3 lg:flex">{desktopAuthActions}</div>
 
         <button
           type="button"
@@ -278,45 +327,7 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
                 Dashboard
               </Link>
 
-              <div className="mt-2 flex flex-col gap-2">
-                {hasSession ? (
-                  <>
-                    <Link
-                      href="/dashboard"
-                      aria-label="Open your dashboard"
-                      className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink"
-                    >
-                      Continue
-                    </Link>
-                    <button
-                      type="button"
-                      aria-label="Log out of your account"
-                      onClick={handleLogout}
-                      className="inline-flex items-center justify-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Log out
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      href="/login"
-                      aria-label="Log in to your account"
-                      className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/signup"
-                      aria-label="Create a free account"
-                      className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
-                    >
-                      Start Free
-                    </Link>
-                  </>
-                )}
-              </div>
+              <div className="mt-2 flex flex-col gap-2">{mobileAuthActions}</div>
             </nav>
           </motion.div>
         )}
@@ -327,7 +338,7 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
 
 export function Navbar() {
   const pathname = usePathname();
-  const { hasSession } = useUserSession();
+  const { hasSession, isChecking } = useUserSession();
 
-  return <NavbarContent key={pathname} pathname={pathname} hasSession={hasSession} />;
+  return <NavbarContent key={pathname} pathname={pathname} hasSession={hasSession} isChecking={isChecking} />;
 }
