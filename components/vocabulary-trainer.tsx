@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { VocabularyTerm } from "@/lib/types";
+import type { VocabularyTerm } from "@/lib/types";
 
 type VocabularyStatus = "new" | "learning" | "mastered";
 
@@ -15,30 +15,33 @@ const statusOrder: Record<VocabularyStatus, number> = {
   mastered: 2
 };
 
+function getStoredStatuses() {
+  if (typeof window === "undefined") {
+    return {} as Record<number, VocabularyStatus>;
+  }
+
+  try {
+    const saved = window.localStorage.getItem("bolo-vocabulary-statuses");
+    return saved ? (JSON.parse(saved) as Record<number, VocabularyStatus>) : {};
+  } catch {
+    return {} as Record<number, VocabularyStatus>;
+  }
+}
+
 export function VocabularyTrainer({ terms }: VocabularyTrainerProps) {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
   const [revealedCardId, setRevealedCardId] = useState<number | null>(terms[0]?.id ?? null);
-  const [statuses, setStatuses] = useState<Record<number, VocabularyStatus>>({});
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [statuses, setStatuses] = useState<Record<number, VocabularyStatus>>(() => getStoredStatuses());
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("bolo-vocabulary-statuses");
-    if (saved) {
-      setStatuses(JSON.parse(saved) as Record<number, VocabularyStatus>);
-    }
-
-    setHasLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hasLoaded) {
+    if (typeof window === "undefined") {
       return;
     }
 
     window.localStorage.setItem("bolo-vocabulary-statuses", JSON.stringify(statuses));
-  }, [hasLoaded, statuses]);
+  }, [statuses]);
 
   const categories = ["All", ...new Set(terms.map((term) => term.category))];
   const levels = ["All", ...new Set(terms.map((term) => term.level))];

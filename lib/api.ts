@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 const endpointPaths = {
   analyze: "/analyze",
@@ -19,8 +19,9 @@ const endpointPaths = {
 } as const;
 
 const DEFAULT_TIMEOUT_MS = 20000;
-const BACKEND_TIMEOUT_MESSAGE = "The Bolo English backend took too long to respond. Railway may still be waking up.";
-const BACKEND_CONNECTION_MESSAGE = "Could not reach the Bolo English backend. Check NEXT_PUBLIC_API_BASE_URL and Railway CORS.";
+const BACKEND_TIMEOUT_MESSAGE = "The Bolo English backend took too long to respond. It may still be starting up.";
+const BACKEND_CONNECTION_MESSAGE =
+  "Could not reach the Bolo English backend. Check NEXT_PUBLIC_API_BASE_URL, backend CORS, or that the local API is running on port 4000.";
 
 export type ApiEndpointKey = keyof typeof endpointPaths;
 
@@ -34,6 +35,24 @@ function trimTrailingSlash(value: string) {
 
 function trimApiSuffix(value: string) {
   return value.replace(/\/api$/i, "");
+}
+
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function getFallbackApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:4000";
+  }
+
+  const { protocol, hostname, origin } = window.location;
+
+  if (isLocalHostname(hostname)) {
+    return `${protocol}//${hostname}:4000`;
+  }
+
+  return origin;
 }
 
 function isApiEndpointKey(value: string): value is ApiEndpointKey {
@@ -83,11 +102,7 @@ export class ApiRequestError extends Error {
 }
 
 export function getApiBaseUrl() {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
-
-  if (!configuredBaseUrl) {
-    throw new Error("API is not configured. Set NEXT_PUBLIC_API_BASE_URL to your deployed backend URL.");
-  }
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || getFallbackApiBaseUrl();
 
   return trimApiSuffix(trimTrailingSlash(configuredBaseUrl));
 }

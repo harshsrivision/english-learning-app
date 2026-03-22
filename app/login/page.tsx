@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import type { Route } from "next";
@@ -6,8 +6,12 @@ import { motion } from "framer-motion";
 import { ArrowRight, KeyRound, Mail, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getSafeRedirectPath } from "@/lib/auth-navigation";
 import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
-import { getStoredUserId, storeUserId } from "@/lib/user-session";
+import { activateLearnerProgress } from "@/lib/local-progress";
+import { storeUserId } from "@/lib/user-session";
+import { useUserSession } from "@/lib/use-user-session";
 
 type LoginResponse = {
   userId?: number;
@@ -15,16 +19,20 @@ type LoginResponse = {
 };
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasSession, isChecking } = useUserSession();
+  const redirectPath = getSafeRedirectPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (getStoredUserId()) {
-      window.location.href = "/dashboard";
+    if (!isChecking && hasSession) {
+      router.replace(redirectPath);
     }
-  }, []);
+  }, [hasSession, isChecking, redirectPath, router]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,13 +57,24 @@ export default function LoginPage() {
         throw new Error("Login failed.");
       }
 
+      activateLearnerProgress(data.userId);
       storeUserId(data.userId);
-      window.location.href = "/dashboard";
+      router.replace(redirectPath);
     } catch (requestError) {
       setError(toApiErrorMessage(requestError, "Login failed."));
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isChecking || hasSession) {
+    return (
+      <main className="section-shell">
+        <div className="surface-card p-8 text-sm text-stone">
+          {isChecking ? "Checking your saved learner session..." : "Your session is already active. Opening your learning flow..."}
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -153,7 +172,7 @@ export default function LoginPage() {
           {error ? <p className="mt-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}
           <p className="mt-6 text-sm text-stone">
             Need an account?{" "}
-            <Link href={"/signup" as Route} aria-label="Open signup page" className="font-semibold text-forest hover:text-forest-dark">
+            <Link href={{ pathname: "/signup", query: redirectPath !== "/dashboard" ? { next: redirectPath } : undefined }} aria-label="Open signup page" className="font-semibold text-forest hover:text-forest-dark">
               Create one here
             </Link>
           </p>

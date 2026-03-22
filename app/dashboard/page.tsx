@@ -1,6 +1,5 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -30,11 +29,9 @@ import {
   getProgressClass,
   getTodayCompletedBlocks,
   getTodayCompletedXp,
-  readLearnerProgress,
-  toggleDailyPlanBlock,
-  writeLearnerProgress,
-  type LearnerProgress
+  toggleDailyPlanBlock
 } from "@/lib/local-progress";
+import { useLearnerProgress } from "@/lib/use-learner-progress";
 
 const blockIcons = {
   "warm-up": RotateCcw,
@@ -48,17 +45,7 @@ const blockIcons = {
 } as const;
 
 export default function DashboardPage() {
-  const [progress, setProgress] = useState<LearnerProgress | null>(null);
-
-  useEffect(() => {
-    setProgress(readLearnerProgress());
-  }, []);
-
-  useEffect(() => {
-    if (progress) {
-      writeLearnerProgress(progress);
-    }
-  }, [progress]);
+  const { progress, setProgress } = useLearnerProgress();
 
   if (!progress) {
     return (
@@ -77,7 +64,7 @@ export default function DashboardPage() {
   const daysRemaining = getDaysRemainingInWeek();
 
   function handleToggleBlock(block: DailyPlanBlock) {
-    setProgress((currentProgress) => (currentProgress ? toggleDailyPlanBlock(currentProgress, block) : currentProgress));
+    setProgress((currentProgress) => toggleDailyPlanBlock(currentProgress, block));
   }
 
   const stats = [
@@ -105,7 +92,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="font-display text-3xl text-ink">Aaj Ka Plan</h2>
-              <p className="mt-2 text-base font-medium text-stone">Today's 45-Minute Session</p>
+              <p className="mt-2 text-base font-medium text-stone">Today&apos;s 45-Minute Session</p>
             </div>
             <div className="rounded-[1.5rem] bg-forest px-4 py-3 text-white">
               <p className="text-xs uppercase tracking-[0.22em] text-white/70">XP earned today</p>
@@ -139,7 +126,7 @@ export default function DashboardPage() {
           <section className="surface-card p-6 sm:p-8">
             <div>
               <h2 className="font-display text-3xl text-ink">Is Hafte Ka Challenge</h2>
-              <p className="mt-2 text-base font-medium text-stone">This Week's Challenge</p>
+              <p className="mt-2 text-base font-medium text-stone">This Week&apos;s Challenge</p>
             </div>
             <div className="mt-6 rounded-[1.6rem] bg-mist p-5">
               <div className="flex items-start justify-between gap-4">
@@ -171,12 +158,16 @@ export default function DashboardPage() {
               <p className="mt-2 text-base font-medium text-stone">Jo consistency dikh rahi hai, uska reward yahan milega</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
-              {progress.badges.map((badge) => (
-                <span key={badge} className="inline-flex items-center gap-2 rounded-full bg-forest-soft px-4 py-2 text-sm font-semibold text-forest">
-                  <Medal className="h-4 w-4" />
-                  {badge}
-                </span>
-              ))}
+              {progress.badges.length ? (
+                progress.badges.map((badge) => (
+                  <span key={badge} className="inline-flex items-center gap-2 rounded-full bg-forest-soft px-4 py-2 text-sm font-semibold text-forest">
+                    <Medal className="h-4 w-4" />
+                    {badge}
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-stone">Complete a lesson, speaking drill, or streak milestone to unlock your first badge.</p>
+              )}
             </div>
           </section>
         </div>
@@ -198,3 +189,4 @@ export default function DashboardPage() {
     </main>
   );
 }
+

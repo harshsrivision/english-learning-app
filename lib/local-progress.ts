@@ -1,4 +1,5 @@
 ﻿import { dailyPlanBlocks, roadmapLevels, weeklyChallenges, type CefrLevel, type DailyPlanBlock, type WeeklyChallenge } from "@/lib/app-data";
+import { dispatchLearnerProgressChanged } from "@/lib/browser-events";
 import { getStoredUserId } from "@/lib/user-session";
 
 export type WeeklyStats = {
@@ -33,7 +34,7 @@ export type LearnerProgressDelta = {
   weeklyStats?: Partial<WeeklyStats>;
 };
 
-const progressStoragePrefix = "bolo-english-progress-v3";
+export const progressStoragePrefix = "bolo-english-progress-v3";
 const legacyProgressStorageKey = "bolo-english-progress-v2";
 
 function pad(value: number) {
@@ -85,7 +86,15 @@ function getDefaultProgress(date = new Date()): LearnerProgress {
   };
 }
 
-function getProgressStorageKey(userId = getStoredUserId()) {
+function clearLegacyProgressStorage() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(legacyProgressStorageKey);
+}
+
+function getProgressStorageKey(userId: number | null = getStoredUserId()) {
   return userId ? `${progressStoragePrefix}:user:${userId}` : `${progressStoragePrefix}:guest`;
 }
 
@@ -128,18 +137,26 @@ function syncWeek(progress: LearnerProgress, date = new Date()) {
   };
 }
 
-export function readLearnerProgress(date = new Date(), userId = getStoredUserId()) {
+function readStoredProgressValue(progressStorageKey: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(progressStorageKey) ?? window.localStorage.getItem(legacyProgressStorageKey);
+}
+
+export function readLearnerProgress(date = new Date(), userId: number | null = getStoredUserId()) {
   if (typeof window === "undefined") {
     return getDefaultProgress(date);
   }
 
   const progressStorageKey = getProgressStorageKey(userId);
-  const storedValue = window.localStorage.getItem(progressStorageKey) ?? window.localStorage.getItem(legacyProgressStorageKey);
+  const storedValue = readStoredProgressValue(progressStorageKey);
 
   if (!storedValue) {
     const defaultProgress = getDefaultProgress(date);
     window.localStorage.setItem(progressStorageKey, JSON.stringify(defaultProgress));
-    window.localStorage.removeItem(legacyProgressStorageKey);
+    clearLegacyProgressStorage();
     return defaultProgress;
   }
 
@@ -147,24 +164,63 @@ export function readLearnerProgress(date = new Date(), userId = getStoredUserId(
     const parsedValue = JSON.parse(storedValue) as Partial<LearnerProgress>;
     const normalizedValue = syncWeek(normalizeProgress(parsedValue, date), date);
     window.localStorage.setItem(progressStorageKey, JSON.stringify(normalizedValue));
-    window.localStorage.removeItem(legacyProgressStorageKey);
+    clearLegacyProgressStorage();
     return normalizedValue;
   } catch {
     const defaultProgress = getDefaultProgress(date);
     window.localStorage.setItem(progressStorageKey, JSON.stringify(defaultProgress));
-    window.localStorage.removeItem(legacyProgressStorageKey);
+    clearLegacyProgressStorage();
     return defaultProgress;
   }
 }
 
-export function writeLearnerProgress(progress: LearnerProgress, userId = getStoredUserId()) {
+export function writeLearnerProgress(progress: LearnerProgress, userId: number | null = getStoredUserId()) {
   if (typeof window === "undefined") {
     return;
   }
 
   const progressStorageKey = getProgressStorageKey(userId);
   window.localStorage.setItem(progressStorageKey, JSON.stringify(progress));
-  window.localStorage.removeItem(legacyProgressStorageKey);
+  clearLegacyProgressStorage();
+  dispatchLearnerProgressChanged(userId);
+}
+
+function hasMeaningfulProgress(progress: LearnerProgress) {
+  return (
+    progress.totalXp > 0 ||
+    progress.streakDays > 0 ||
+    progress.badges.length > 0 ||
+    progress.lessonsCompleted > 0 ||
+    progress.speakingMinutes > 0 ||
+    progress.vocabularyWords > 0 ||
+    progress.lastActiveDate !== null ||
+    Object.values(progress.weeklyStats).some((value) => value > 0) ||
+    Object.values(progress.completedPlanByDate).some((blocks) => blocks.length > 0)
+  );
+}
+
+export function activateLearnerProgress(userId: number, date = new Date()) {
+  if (typeof window === "undefined") {
+    return getDefaultProgress(date);
+  }
+
+  const userStorageKey = getProgressStorageKey(userId);
+  const guestStorageKey = getProgressStorageKey(null);
+  const userProgress = readLearnerProgress(date, userId);
+  const guestProgress = readLearnerProgress(date, null);
+  const guestRawValue = readStoredProgressValue(guestStorageKey);
+  const shouldAdoptGuestProgress = Boolean(guestRawValue) && !hasMeaningfulProgress(userProgress) && hasMeaningfulProgress(guestProgress);
+  const activatedProgress = shouldAdoptGuestProgress ? guestProgress : userProgress;
+
+  window.localStorage.setItem(userStorageKey, JSON.stringify(activatedProgress));
+
+  if (shouldAdoptGuestProgress) {
+    window.localStorage.removeItem(guestStorageKey);
+  }
+
+  clearLegacyProgressStorage();
+  dispatchLearnerProgressChanged(userId);
+  return activatedProgress;
 }
 
 function addBadge(progress: LearnerProgress, badge: string) {
@@ -178,8 +234,34 @@ function addBadge(progress: LearnerProgress, badge: string) {
   };
 }
 
+const levelThresholds: Array<{ level: CefrLevel; minXp: number }> = [
+  { level: "A0", minXp: 0 },
+  { level: "A1", minXp: 180 },
+  { level: "A2", minXp: 450 },
+  { level: "B1", minXp: 900 },
+  { level: "B2", minXp: 1800 },
+  { level: "C1", minXp: 3200 }
+];
+
+export function getCurrentCefrLevel(totalXp: number) {
+  let currentLevel: CefrLevel = "A0";
+
+  for (const threshold of levelThresholds) {
+    if (totalXp >= threshold.minXp) {
+      currentLevel = threshold.level;
+    }
+  }
+
+  return currentLevel;
+}
+
+export function getLevelIndex(level: CefrLevel) {
+  return roadmapLevels.findIndex((item) => item.level === level);
+}
+
 function maybeAwardBadges(progress: LearnerProgress) {
   let nextProgress = progress;
+  const currentLevel = getCurrentCefrLevel(nextProgress.totalXp);
 
   if (nextProgress.lessonsCompleted >= 1) {
     nextProgress = addBadge(nextProgress, "Starter Spark");
@@ -211,6 +293,22 @@ function maybeAwardBadges(progress: LearnerProgress) {
 
   if (nextProgress.weeklyStats.vocabularyWords >= 50) {
     nextProgress = addBadge(nextProgress, "Vocab Sprint Winner");
+  }
+
+  if (nextProgress.weeklyStats.perfectGrammarDays >= 5) {
+    nextProgress = addBadge(nextProgress, "Grammar Star");
+  }
+
+  if (nextProgress.speakingMinutes >= 600) {
+    nextProgress = addBadge(nextProgress, "Speaking Milestone");
+  }
+
+  if (getLevelIndex(currentLevel) >= getLevelIndex("A1")) {
+    nextProgress = addBadge(nextProgress, "A1 Graduate");
+  }
+
+  if (currentLevel === "C1") {
+    nextProgress = addBadge(nextProgress, "C1 Champion");
   }
 
   return nextProgress;
@@ -310,7 +408,7 @@ export function applyLearnerProgressDelta(progress: LearnerProgress, delta: Lear
   return maybeAwardBadges(nextProgress);
 }
 
-export function recordLearnerProgress(delta: LearnerProgressDelta, date = new Date(), userId = getStoredUserId()) {
+export function recordLearnerProgress(delta: LearnerProgressDelta, date = new Date(), userId: number | null = getStoredUserId()) {
   const currentProgress = readLearnerProgress(date, userId);
   const nextProgress = applyLearnerProgressDelta(currentProgress, delta, date);
   writeLearnerProgress(nextProgress, userId);
@@ -344,31 +442,6 @@ export function getChallengeProgress(progress: LearnerProgress, challenge: Weekl
   return progress.weeklyStats[challenge.metric];
 }
 
-const levelThresholds: Array<{ level: CefrLevel; minXp: number }> = [
-  { level: "A0", minXp: 0 },
-  { level: "A1", minXp: 180 },
-  { level: "A2", minXp: 450 },
-  { level: "B1", minXp: 900 },
-  { level: "B2", minXp: 1800 },
-  { level: "C1", minXp: 3200 }
-];
-
-export function getCurrentCefrLevel(totalXp: number) {
-  let currentLevel: CefrLevel = "A0";
-
-  for (const threshold of levelThresholds) {
-    if (totalXp >= threshold.minXp) {
-      currentLevel = threshold.level;
-    }
-  }
-
-  return currentLevel;
-}
-
-export function getLevelIndex(level: CefrLevel) {
-  return roadmapLevels.findIndex((item) => item.level === level);
-}
-
 export function getProgressClass(percent: number) {
   const bucket = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
   return `progress-w-${bucket}`;
@@ -377,5 +450,3 @@ export function getProgressClass(percent: number) {
 export function formatSpeakingHours(minutes: number) {
   return `${(minutes / 60).toFixed(1)} hrs`;
 }
-
-
