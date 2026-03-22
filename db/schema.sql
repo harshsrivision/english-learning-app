@@ -21,6 +21,16 @@ CREATE TABLE lessons (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE user_lessons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lesson_id BIGINT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  is_unlocked BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (user_id, lesson_id)
+);
+
+CREATE INDEX idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked);
+
 CREATE TABLE grammar_topics (
   id BIGSERIAL PRIMARY KEY,
   english_title TEXT NOT NULL,

@@ -6,7 +6,7 @@ import { vocabularyTerms } from "./data";
 
 type AppQueryResult<T extends QueryResultRow = QueryResultRow> = Pick<QueryResult<T>, "rows" | "rowCount">;
 
-type AppDatabase = {
+export type AppDatabase = {
   dialect: "postgres" | "sqlite";
   query<T extends QueryResultRow = QueryResultRow>(sql: string, params?: unknown[]): Promise<AppQueryResult<T>>;
 };
@@ -36,7 +36,7 @@ function createSqliteAdapter(db: DatabaseSync): AppDatabase {
     dialect: "sqlite",
     async query<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) {
       const normalizedSql = normalizeSqliteSql(sql).trim();
-      const sqliteParams = params as (string | number | bigint | Uint8Array | null)[];
+      const sqliteParams = params as (string | number | bigint | Uint8Array | null | boolean)[];
 
       if (/\bRETURNING\s+id\s*$/i.test(normalizedSql)) {
         const statement = db.prepare(normalizedSql.replace(/\s+RETURNING\s+id\s*$/i, ""));
@@ -73,6 +73,7 @@ async function preparePostgresDatabase(db: AppDatabase) {
   await db.query(`CREATE TABLE IF NOT EXISTS daily_progress (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, sentences_spoken INTEGER, words_learned INTEGER, lessons_completed INTEGER)`);
   await db.query(`CREATE TABLE IF NOT EXISTS vocabulary (id SERIAL PRIMARY KEY, word TEXT, meaning TEXT, example TEXT)`);
   await db.query(`CREATE TABLE IF NOT EXISTS vocabulary_progress (id SERIAL PRIMARY KEY, user_id INTEGER, word_id INTEGER, last_seen TEXT, correct_count INTEGER DEFAULT 0)`);
+  await db.query(`CREATE TABLE IF NOT EXISTS user_lessons (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, is_unlocked BOOLEAN NOT NULL DEFAULT FALSE)`);
 
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT");
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT");
@@ -80,11 +81,14 @@ async function preparePostgresDatabase(db: AppDatabase) {
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS level TEXT");
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0");
   await db.query("ALTER TABLE progress ADD COLUMN IF NOT EXISTS completed_at TEXT");
+  await db.query("ALTER TABLE user_lessons ADD COLUMN IF NOT EXISTS is_unlocked BOOLEAN DEFAULT FALSE");
 
   await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)");
   await db.query("CREATE INDEX IF NOT EXISTS idx_progress_user_lesson ON progress(user_id, lesson)");
   await db.query("CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date ON daily_progress(user_id, date)");
   await db.query("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
+  await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
+  await db.query("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
 }
 
 function prepareSqliteDatabase(db: DatabaseSync) {
@@ -130,10 +134,18 @@ function prepareSqliteDatabase(db: DatabaseSync) {
       last_seen TEXT,
       correct_count INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS user_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lesson_id INTEGER NOT NULL,
+      is_unlocked INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   const userColumns = new Set((db.prepare("PRAGMA table_info(users)").all() as SqliteColumnRow[]).map((column) => column.name));
   const progressColumns = new Set((db.prepare("PRAGMA table_info(progress)").all() as SqliteColumnRow[]).map((column) => column.name));
+  const userLessonColumns = new Set((db.prepare("PRAGMA table_info(user_lessons)").all() as SqliteColumnRow[]).map((column) => column.name));
 
   if (!userColumns.has("email")) {
     db.exec("ALTER TABLE users ADD COLUMN email TEXT");
@@ -159,10 +171,16 @@ function prepareSqliteDatabase(db: DatabaseSync) {
     db.exec("ALTER TABLE progress ADD COLUMN completed_at TEXT");
   }
 
+  if (!userLessonColumns.has("is_unlocked")) {
+    db.exec("ALTER TABLE user_lessons ADD COLUMN is_unlocked INTEGER NOT NULL DEFAULT 0");
+  }
+
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_progress_user_lesson ON progress(user_id, lesson)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date ON daily_progress(user_id, date)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
 }
 
 async function seedVocabulary(db: AppDatabase) {
@@ -235,4 +253,3 @@ export async function initDB() {
 
   return dbPromise;
 }
-
