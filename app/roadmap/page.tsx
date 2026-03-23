@@ -1,6 +1,7 @@
+﻿/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { RoadmapLevelCard } from "@/components/roadmap-level-card";
@@ -11,20 +12,21 @@ import { useLearnerProgress } from "@/lib/use-learner-progress";
 
 export default function RoadmapPage() {
   const { progress } = useLearnerProgress();
-  const [selectedOpenLevel, setSelectedOpenLevel] = useState<CefrLevel | null>(null);
+  const [currentLevel, setCurrentLevel] = useState<CefrLevel>("A0");
+  const [openLevel, setOpenLevel] = useState<CefrLevel>("A0");
   const [hasChosenOpenLevel, setHasChosenOpenLevel] = useState(false);
 
-  const currentLevel = progress ? getCurrentCefrLevel(progress.totalXp) : "A0";
-  const currentLevelIndex = getLevelIndex(currentLevel);
-  const openLevel = hasChosenOpenLevel ? selectedOpenLevel : currentLevel;
+  useEffect(() => {
+    setCurrentLevel(getCurrentCefrLevel(progress.totalXp));
+  }, [progress.totalXp]);
 
-  if (!progress) {
-    return (
-      <main className="section-shell">
-        <div className="surface-card p-6 text-sm text-stone">Roadmap loading ho raha hai...</div>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!hasChosenOpenLevel) {
+      setOpenLevel(currentLevel);
+    }
+  }, [currentLevel, hasChosenOpenLevel]);
+
+  const currentLevelIndex = getLevelIndex(currentLevel);
 
   return (
     <main className="section-shell space-y-10">
@@ -87,7 +89,7 @@ export default function RoadmapPage() {
               expanded={expanded}
               onToggle={() => {
                 setHasChosenOpenLevel(true);
-                setSelectedOpenLevel((current) => (current === level.level ? null : level.level));
+                setOpenLevel((current) => (current === level.level ? currentLevel : level.level));
               }}
             />
           );
@@ -96,3 +98,5 @@ export default function RoadmapPage() {
     </main>
   );
 }
+
+

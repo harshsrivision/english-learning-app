@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiFetchJson, getApiUrl, toApiErrorMessage } from "@/lib/api";
+import { apiFetchJson, getApiUrl } from "@/lib/api";
 import { recordLearnerProgress } from "@/lib/local-progress";
 
 type Level = "beginner" | "intermediate" | "advanced" | "professional";
@@ -99,6 +99,11 @@ type SentenceAnalysis = {
   error?: string;
 };
 
+type ChatResponse = {
+  reply?: string;
+  error?: string;
+};
+
 const practiceScenarios = [
   {
     title: "Manager Introduction",
@@ -124,9 +129,11 @@ const practiceScenarios = [
 ] as const satisfies ReadonlyArray<PracticeScenario>;
 
 const fillerWords = new Set(["um", "uh", "like", "actually", "basically"]);
+const AI_BUSY_MESSAGE = "AI abhi busy hai, dobara try karo";
+const PROGRESS_SAVE_MESSAGE = "Progress save nahi ho paaya, phir se try karo.";
 
 type SpeakingPracticeProps = {
-  userId: number;
+  userId: number | null;
 };
 
 function buildFeedback(transcript: string) {
@@ -175,6 +182,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [conversationReply, setConversationReply] = useState("");
   const [pronunciationScore, setPronunciationScore] = useState<number | null>(null);
   const [pronunciationFeedback, setPronunciationFeedback] = useState("");
   const [sessionFeedback, setSessionFeedback] = useState<SpeakingSessionFeedback | null>(null);
@@ -213,6 +221,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   function clearPreviousAnalysis() {
     setFeedback("");
+    setConversationReply("");
     setPronunciationScore(null);
     setPronunciationFeedback("");
     setSessionFeedback(null);
@@ -239,13 +248,30 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
               : null;
 
       if (!correctedText) {
-        throw new Error("Correction request failed");
+        throw new Error(AI_BUSY_MESSAGE);
       }
 
       return { result: correctedText };
-    } catch (requestError) {
-      console.error("Correction API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Correction request failed"));
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
+    }
+  }
+
+  async function fetchConversationReply(sentence: string) {
+    try {
+      const data = await apiFetchJson<ChatResponse>("chat", {
+        method: "POST",
+        timeoutMs: 30000,
+        body: JSON.stringify({ message: sentence })
+      });
+
+      if (typeof data.reply !== "string") {
+        throw new Error(AI_BUSY_MESSAGE);
+      }
+
+      return data.reply;
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
     }
   }
 
@@ -258,16 +284,15 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
       });
 
       if (typeof data.score !== "number" || typeof data.feedback !== "string") {
-        throw new Error("Pronunciation request failed");
+        throw new Error(AI_BUSY_MESSAGE);
       }
 
       return {
         score: data.score,
         feedback: data.feedback
       } satisfies PronunciationScore;
-    } catch (requestError) {
-      console.error("Pronunciation API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Pronunciation request failed"));
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
     }
   }
 
@@ -286,13 +311,12 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         typeof data.pronunciationTip !== "string" ||
         typeof data.fluencyFeedback !== "string"
       ) {
-        throw new Error("Sentence analysis failed");
+        throw new Error(AI_BUSY_MESSAGE);
       }
 
       return data;
-    } catch (requestError) {
-      console.error("Analyze API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Sentence analysis failed"));
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
     }
   }
 
@@ -303,14 +327,14 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         method: "POST",
         timeoutMs: 15000,
         body: JSON.stringify({
+          ...(userId ? { userId } : {}),
           prompt: scenario.prompt,
           transcribedText: sentence,
           level: scenario.level
         })
       });
-    } catch (requestError) {
-      console.error("Speaking session API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Speaking session request failed"));
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
     }
   }
 
@@ -324,13 +348,16 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
           transcript: sentence
         })
       });
-    } catch (requestError) {
-      console.error("Pronunciation review API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Pronunciation review request failed"));
+    } catch {
+      throw new Error(AI_BUSY_MESSAGE);
     }
   }
 
   async function saveSpokenSentenceProgress() {
+    if (!userId) {
+      return true;
+    }
+
     try {
       const data = await apiFetchJson<{ success?: boolean; error?: string }>("dailyProgress", {
         method: "POST",
@@ -344,12 +371,9 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         })
       });
 
-      if (!data.success) {
-        throw new Error("Daily progress could not be saved.");
-      }
-    } catch (requestError) {
-      console.error("Daily progress API error", requestError);
-      throw new Error(toApiErrorMessage(requestError, "Daily progress could not be saved."));
+      return Boolean(data.success);
+    } catch {
+      return false;
     }
   }
 
@@ -366,91 +390,110 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
     setError(null);
 
     try {
-      const [scoreResult, speakingResult, pronunciationReviewResult, correctionResult, sentenceAnalysisResult] = await Promise.allSettled([
+      const [
+        scoreResult,
+        correctionResult,
+        sentenceAnalysisResult,
+        conversationReplyResult,
+        speakingResult,
+        pronunciationReviewResult
+      ] = await Promise.allSettled([
         checkPronunciation(trimmedTranscript),
-        fetchSpeakingSession(trimmedTranscript),
-        fetchPronunciationReview(trimmedTranscript),
         sendSentence(trimmedTranscript),
-        analyzeSpeech(trimmedTranscript)
+        analyzeSpeech(trimmedTranscript),
+        fetchConversationReply(trimmedTranscript),
+        fetchSpeakingSession(trimmedTranscript),
+        fetchPronunciationReview(trimmedTranscript)
       ]);
 
-      let hasRemoteFeedback = false;
-      let hasRemoteFailure = false;
+      let hasPrimaryFeedback = false;
+      let primaryFailure = false;
+      let progressSaveFailed = false;
 
       if (scoreResult.status === "fulfilled") {
         setPronunciationScore(scoreResult.value.score);
         setPronunciationFeedback(scoreResult.value.feedback);
-        hasRemoteFeedback = true;
+        hasPrimaryFeedback = true;
       } else {
         setPronunciationScore(null);
         setPronunciationFeedback("");
-        hasRemoteFailure = true;
-      }
-
-      if (speakingResult.status === "fulfilled") {
-        setSessionFeedback(speakingResult.value);
-        hasRemoteFeedback = true;
-      } else {
-        setSessionFeedback(null);
-        hasRemoteFailure = true;
-      }
-
-      if (pronunciationReviewResult.status === "fulfilled") {
-        setPronunciationReview(pronunciationReviewResult.value);
-        hasRemoteFeedback = true;
-      } else {
-        setPronunciationReview(null);
-        hasRemoteFailure = true;
+        primaryFailure = true;
       }
 
       if (correctionResult.status === "fulfilled") {
         setFeedback(correctionResult.value.result);
-        hasRemoteFeedback = true;
+        hasPrimaryFeedback = true;
       } else {
         setFeedback("");
-        hasRemoteFailure = true;
+        primaryFailure = true;
       }
 
       if (sentenceAnalysisResult.status === "fulfilled") {
         setSentenceAnalysis(sentenceAnalysisResult.value);
-        hasRemoteFeedback = true;
-
-        recordLearnerProgress({
-          xp: 24,
-          speakingMinutes: 6,
-          streakActivity: true,
-          weeklyStats: {
-            speakingDrills: 1
-          }
-        });
-
-        try {
-          await saveSpokenSentenceProgress();
-        } catch {
-          hasRemoteFailure = true;
-        }
+        hasPrimaryFeedback = true;
       } else {
         setSentenceAnalysis(null);
-        hasRemoteFailure = true;
+        primaryFailure = true;
       }
 
-      if (!hasRemoteFeedback) {
-        throw new Error("Analysis request failed");
+      if (conversationReplyResult.status === "fulfilled") {
+        setConversationReply(conversationReplyResult.value);
+        hasPrimaryFeedback = true;
+      } else {
+        setConversationReply("");
+        primaryFailure = true;
+      }
+
+      if (speakingResult.status === "fulfilled") {
+        setSessionFeedback(speakingResult.value);
+      } else {
+        setSessionFeedback(null);
+      }
+
+      if (pronunciationReviewResult.status === "fulfilled") {
+        setPronunciationReview(pronunciationReviewResult.value);
+      } else {
+        setPronunciationReview(null);
+      }
+
+      if (!hasPrimaryFeedback) {
+        throw new Error(AI_BUSY_MESSAGE);
+      }
+
+      if (userId) {
+        const savedProgress = await saveSpokenSentenceProgress();
+
+        if (savedProgress) {
+          recordLearnerProgress({
+            xp: 24,
+            speakingMinutes: 6,
+            streakActivity: true,
+            weeklyStats: {
+              speakingDrills: 1
+            }
+          });
+        } else {
+          progressSaveFailed = true;
+        }
       }
 
       setAnalysisState("success");
-      if (hasRemoteFailure) {
-        setError("Some analysis services or progress-saving steps were unavailable. Available feedback is still shown below.");
+
+      if (primaryFailure) {
+        setError(AI_BUSY_MESSAGE);
+      } else if (progressSaveFailed) {
+        setError(PROGRESS_SAVE_MESSAGE);
       }
     } catch {
       setFeedback("");
+      setConversationReply("");
       setPronunciationScore(null);
       setPronunciationFeedback("");
       setSessionFeedback(null);
       setPronunciationReview(null);
       setSentenceAnalysis(null);
       setAnalysisState("error");
-      setError("The API feedback service is unavailable right now. Local speaking feedback is still shown below.");
+      setError(AI_BUSY_MESSAGE);
     } finally {
       setRecordingState("idle");
     }
@@ -542,9 +585,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
               .then((result) => {
                 setSentenceAnalysis(result);
               })
-              .catch((requestError) => {
-                console.error("Live analyze API error", requestError);
-              });
+              .catch(() => {});
           }
         };
         recognition.onerror = (event) => {
@@ -734,6 +775,13 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         <h2 className="mt-4 font-display text-2xl sm:text-3xl">Pronunciation and fluency review</h2>
         <p className="mt-3 text-sm font-medium text-white/70">Tumhari speaking ko score, tips, aur Hindi coaching ke saath breakdown kiya jata hai</p>
 
+        {analysisState === "loading" ? (
+          <div className="mt-6 rounded-3xl bg-white/5 p-5">
+            <p className="text-sm font-semibold text-gold">Loading</p>
+            <p className="mt-3 text-sm leading-6 text-white/80">AI analysis aa raha hai...</p>
+          </div>
+        ) : null}
+
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5">
             <p className="text-sm text-white/65">Fluency</p>
@@ -763,6 +811,13 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
           <p className="text-sm font-semibold text-gold">AI feedback</p>
           <p className="mt-3 text-sm leading-6 text-white/80">
             {feedback || "Record or type a sentence, then run analysis to see the AI correction feedback."}
+          </p>
+        </div>
+
+        <div className="mt-6 rounded-3xl bg-white/5 p-5">
+          <p className="text-sm font-semibold text-gold">AI conversation reply</p>
+          <p className="mt-3 text-sm leading-6 text-white/80">
+            {conversationReply || "Analyze a sentence to see how the AI would reply in conversation."}
           </p>
         </div>
 
@@ -850,13 +905,3 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-

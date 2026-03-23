@@ -1,17 +1,18 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import type { Route } from "next";
 import type { CefrLevel } from "@/lib/app-data";
 
 const badgeClassByLevel: Record<CefrLevel, string> = {
-  A0: "bg-slate-100 text-slate-700",
+  A0: "bg-stone/10 text-stone",
   A1: "bg-forest-soft text-forest",
-  A2: "bg-sky text-blue-700",
-  B1: "bg-yellow-100 text-yellow-700",
-  B2: "bg-orange-100 text-orange-700",
-  C1: "bg-red-100 text-red-700"
+  A2: "bg-forest-soft text-forest",
+  B1: "bg-gold/10 text-gold",
+  B2: "bg-gold/20 text-gold",
+  C1: "bg-ink/10 text-ink"
 };
 
 type GrammarTopicCardProps = {
@@ -21,10 +22,11 @@ type GrammarTopicCardProps = {
   duration: string;
   hook: string;
   description: string;
+  href: Route;
   delay?: number;
 };
 
-export function GrammarTopicCard({ title, subtitle, level, duration, hook, description, delay = 0 }: GrammarTopicCardProps) {
+export function GrammarTopicCard({ title, subtitle, level, duration, hook, description, href, delay = 0 }: GrammarTopicCardProps) {
   return (
     <motion.article
       initial={{ opacity: 0, y: 24 }}
@@ -44,8 +46,8 @@ export function GrammarTopicCard({ title, subtitle, level, duration, hook, descr
       </div>
       <p className="rounded-[1.3rem] bg-mist px-4 py-3 text-sm leading-6 text-stone">{hook}</p>
       <p className="text-sm leading-7 text-stone">{description}</p>
-      <Link href="/practice" aria-label={`Practice ${title}`} className="mt-auto inline-flex items-center gap-2 text-sm font-bold text-forest">
-        Practice This Topic
+      <Link href={href} aria-label={`Open lesson for grammar topic ${title}`} className="mt-auto inline-flex items-center gap-2 text-sm font-bold text-forest">
+        Open Related Lesson
         <ArrowRight className="h-4 w-4" />
       </Link>
     </motion.article>

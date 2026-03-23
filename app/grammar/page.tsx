@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { Route } from "next";
 import Link from "next/link";
@@ -16,7 +16,7 @@ export default function GrammarPage() {
         description="Ek rule, 5 examples, aur ek drill - bas itna hi. Isi format mein learner overthinking chhodkar bolna start karta hai."
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {grammarTopicCards.map((topic, index) => (
           <GrammarTopicCard
             key={topic.id}
@@ -26,6 +26,7 @@ export default function GrammarPage() {
             duration={topic.duration}
             hook={topic.hook}
             description={topic.description}
+            href={`/lessons/${topic.lessonId}` as Route}
             delay={index * 0.05}
           />
         ))}

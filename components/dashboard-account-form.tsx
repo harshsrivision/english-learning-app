@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { KeyRound, Mail, UserRound } from "lucide-react";
-import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { apiFetchJson, toAuthApiErrorMessage } from "@/lib/api";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
 
@@ -13,6 +14,7 @@ type CreateUserResponse = {
 };
 
 export function DashboardAccountForm() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,11 +49,11 @@ export function DashboardAccountForm() {
         throw new Error("User creation failed.");
       }
 
-      activateLearnerProgress(data.userId);
       storeUserId(data.userId);
-      window.location.href = "/dashboard";
+      activateLearnerProgress(data.userId);
+      router.replace("/dashboard");
     } catch (requestError) {
-      setError(toApiErrorMessage(requestError, "User creation failed."));
+      setError(toAuthApiErrorMessage(requestError, "Signup nahi ho paaya, dobara try karo."));
     } finally {
       setIsSubmitting(false);
     }

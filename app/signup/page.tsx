@@ -3,16 +3,26 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import type { MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardAccountForm } from "@/components/dashboard-account-form";
 import { buildLoginHref, defaultAuthenticatedPath, readRedirectPathFromLocation } from "@/lib/auth-navigation";
 import { useUserSession } from "@/lib/use-user-session";
 
-export default function SignupPage() {
+function SignupPageFallback() {
+  return (
+    <main className="section-shell">
+      <div className="surface-card p-8 text-sm text-stone">Signup page load ho raha hai...</div>
+    </main>
+  );
+}
+
+function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { hasSession, isChecking } = useUserSession();
+  const signupMessage = searchParams.get("message");
 
   useEffect(() => {
     if (!isChecking && hasSession) {
@@ -42,7 +52,9 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="section-shell">
+    <main className="section-shell space-y-5">
+      {signupMessage ? <p className="rounded-[1.5rem] bg-forest-soft px-5 py-4 text-sm font-semibold text-forest">{signupMessage}</p> : null}
+
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <motion.section
           initial={{ opacity: 0, y: 24 }}
@@ -75,5 +87,13 @@ export default function SignupPage() {
         </motion.section>
       </div>
     </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupPageFallback />}>
+      <SignupPageContent />
+    </Suspense>
   );
 }

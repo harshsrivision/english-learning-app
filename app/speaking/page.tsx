@@ -1,20 +1,13 @@
 ﻿"use client";
 
 import { Mic2, Sparkles, Volume2 } from "lucide-react";
+import Link from "next/link";
 import { SectionHeading } from "@/components/section-heading";
 import { SpeakingPractice } from "@/components/speaking-practice";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
 export default function SpeakingPage() {
-  const { userId, isChecking } = useRequiredUserId();
-
-  if (isChecking || !userId) {
-    return (
-      <main className="section-shell">
-        <div className="surface-card p-8 text-sm text-stone">Checking account session...</div>
-      </main>
-    );
-  }
+  const { userId, isChecking } = useRequiredUserId({ redirectIfMissing: false });
 
   return (
     <main className="section-shell space-y-8">
@@ -24,6 +17,21 @@ export default function SpeakingPage() {
         subtitle="Microphone, live transcript, AI feedback, aur Hindi coaching ek hi jagah"
         description="Yeh page un learners ke liye hai jo sirf read nahi, actually bolkar fluency build karna chahte hain. Prompt pick karo, bolo, aur turant review dekho."
       />
+
+      {!isChecking && !userId ? (
+        <section className="surface-card p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-forest">Login karo to progress save ho — Start Free</p>
+            <Link
+              href="/signup"
+              aria-label="Open signup page to save speaking progress"
+              className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
+            >
+              Start Free
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="surface-card p-5">

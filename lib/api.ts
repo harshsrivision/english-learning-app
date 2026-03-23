@@ -7,8 +7,10 @@ const endpointPaths = {
   conversation: "/chat",
   correct: "/correct",
   correction: "/correct",
+  chapterProgress: "/chapter-progress",
   dailyProgress: "/daily-progress",
   lessonProgress: "/lesson-progress",
+  lessonUnlocks: "/lesson-unlocks",
   lessons: "/lessons",
   login: "/login",
   pronunciation: "/pronunciation",
@@ -22,6 +24,9 @@ const DEFAULT_TIMEOUT_MS = 20000;
 const BACKEND_TIMEOUT_MESSAGE = "The Bolo English backend took too long to respond. It may still be starting up.";
 const BACKEND_CONNECTION_MESSAGE =
   "Could not reach the Bolo English backend. Check NEXT_PUBLIC_API_BASE_URL, backend CORS, or that the local API is running on port 4000.";
+const AUTH_EMAIL_EXISTS_MESSAGE = "Yeh email pehle se registered hai";
+const AUTH_INVALID_CREDENTIALS_MESSAGE = "Email ya password galat hai";
+const AUTH_NETWORK_ERROR_MESSAGE = "Server se connect nahi ho pa raha, thodi der mein try karo";
 
 export type ApiEndpointKey = keyof typeof endpointPaths;
 
@@ -102,9 +107,9 @@ export class ApiRequestError extends Error {
 }
 
 export function getApiBaseUrl() {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || getFallbackApiBaseUrl();
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
-  return trimApiSuffix(trimTrailingSlash(configuredBaseUrl));
+  return trimApiSuffix(trimTrailingSlash(configuredBaseUrl || getFallbackApiBaseUrl()));
 }
 
 function resolveApiUrl(endpoint: ApiEndpointKey | string) {
@@ -139,6 +144,42 @@ export function toApiErrorMessage(error: unknown, fallback: string) {
 
   if (error instanceof Error) {
     return error.message;
+  }
+
+  return fallback;
+}
+
+export function toAuthApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 409) {
+      return AUTH_EMAIL_EXISTS_MESSAGE;
+    }
+
+    if (error.status === 401) {
+      return AUTH_INVALID_CREDENTIALS_MESSAGE;
+    }
+  }
+
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return AUTH_NETWORK_ERROR_MESSAGE;
+  }
+
+  if (error instanceof TypeError) {
+    return AUTH_NETWORK_ERROR_MESSAGE;
+  }
+
+  const message = toApiErrorMessage(error, fallback).toLowerCase();
+
+  if (message.includes("already exists") || message.includes("already registered")) {
+    return AUTH_EMAIL_EXISTS_MESSAGE;
+  }
+
+  if (message.includes("invalid credentials")) {
+    return AUTH_INVALID_CREDENTIALS_MESSAGE;
+  }
+
+  if (message.includes("could not reach") || message.includes("failed to respond")) {
+    return AUTH_NETWORK_ERROR_MESSAGE;
   }
 
   return fallback;
@@ -180,3 +221,4 @@ export async function correctSentence(sentence: string) {
     body: JSON.stringify({ sentence })
   });
 }
+

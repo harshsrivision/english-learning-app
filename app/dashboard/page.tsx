@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   BarChart3,
@@ -46,14 +46,6 @@ const blockIcons = {
 
 export default function DashboardPage() {
   const { progress, setProgress } = useLearnerProgress();
-
-  if (!progress) {
-    return (
-      <main className="section-shell">
-        <div className="surface-card p-6 text-sm text-stone">Dashboard loading ho raha hai...</div>
-      </main>
-    );
-  }
 
   const currentLevel = getCurrentCefrLevel(progress.totalXp);
   const completedToday = new Set(getTodayCompletedBlocks(progress));
@@ -189,4 +181,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-

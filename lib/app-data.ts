@@ -1,4 +1,4 @@
-﻿export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
+export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
 
 export type HomeStep = {
   id: string;
@@ -84,6 +84,7 @@ export type GrammarTopicCardData = {
   duration: string;
   hook: string;
   description: string;
+  lessonId: number;
 };
 
 export const homeTrustLine = "4.8 rated | 12,000+ learners | Used in 18 Indian cities";
@@ -442,7 +443,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A1",
     duration: "15 min",
     hook: "Daily routine, habit, aur abhi chal raha action samajhne ke liye.",
-    description: "One clear rule, five examples, and one mini speaking drill."
+    description: "One clear rule, five examples, and one mini speaking drill.",
+    lessonId: 7
   },
   {
     id: "past-tense",
@@ -451,7 +453,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A2",
     duration: "20 min",
     hook: "Yesterday, last week, aur finished actions ko naturally bolne ke liye.",
-    description: "Useful for stories, interviews, and experience sharing."
+    description: "Useful for stories, interviews, and experience sharing.",
+    lessonId: 10
   },
   {
     id: "future-tense",
@@ -460,7 +463,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A2",
     duration: "15 min",
     hook: "Plans, promises, aur upcoming work ke liye future sentence patterns.",
-    description: "Short structure practice with confident speaking prompts."
+    description: "Short structure practice with confident speaking prompts.",
+    lessonId: 11
   },
   {
     id: "questions",
@@ -469,7 +473,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A1",
     duration: "15 min",
     hook: "What, where, why, when aur polite questions ka simple system.",
-    description: "Great for classroom, office, and travel conversations."
+    description: "Great for classroom, office, and travel conversations.",
+    lessonId: 8
   },
   {
     id: "articles",
@@ -478,7 +483,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A1",
     duration: "10 min",
     hook: "Small words jo sentence ko natural aur correct bana dete hain.",
-    description: "Quick fixes for one of the most common Hindi-speaker mistakes."
+    description: "Quick fixes for one of the most common Hindi-speaker mistakes.",
+    lessonId: 5
   },
   {
     id: "prepositions",
@@ -487,7 +493,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "A2",
     duration: "15 min",
     hook: "Time, place, aur movement ke liye right preposition choose karna.",
-    description: "Use realistic examples from office, home, and travel."
+    description: "Use realistic examples from office, home, and travel.",
+    lessonId: 9
   },
   {
     id: "tenses-overview",
@@ -496,7 +503,8 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "B1",
     duration: "25 min",
     hook: "Poora tense map ek jagah, taaki confusion finally khatam ho.",
-    description: "Ideal when you want the full picture instead of isolated rules."
+    description: "Ideal when you want the full picture instead of isolated rules.",
+    lessonId: 15
   },
   {
     id: "modals",
@@ -505,6 +513,47 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     level: "B1",
     duration: "20 min",
     hook: "Polite request, advice, ability, aur office English ke liye.",
-    description: "Makes your English sound more natural and professional."
+    description: "Makes your English sound more natural and professional.",
+    lessonId: 16
+  },
+  {
+    id: "conditionals",
+    title: "Conditionals",
+    hindiSubtitle: "Agar... toh... wale sentences",
+    level: "B1",
+    duration: "20 min",
+    hook: "If I study, I will pass — yeh pattern B1 se zaroor seekho.",
+    description: "0, 1st, 2nd conditional with real office and life examples.",
+    lessonId: 21
+  },
+  {
+    id: "passive-voice",
+    title: "Passive Voice",
+    hindiSubtitle: "Kaam kiya gaya vs kaam kiya",
+    level: "B2",
+    duration: "20 min",
+    hook: "Reports, emails, aur formal writing mein passive voice common hai.",
+    description: "Learn when to use it and how to switch between active and passive.",
+    lessonId: 14
+  },
+  {
+    id: "reported-speech",
+    title: "Reported Speech",
+    hindiSubtitle: "Unhone kaha ki...",
+    level: "B1",
+    duration: "15 min",
+    hook: "Meetings mein kisi ki baat doosre ko batane ke liye.",
+    description: "Direct se indirect speech mein convert karna with tense shifts.",
+    lessonId: 13
+  },
+  {
+    id: "connectors",
+    title: "Discourse Markers",
+    hindiSubtitle: "Ideas ko jodne wale phrases",
+    level: "B1",
+    duration: "15 min",
+    hook: "However, therefore, in addition — presentations ke liye essential.",
+    description: "Make your English flow naturally from one idea to the next.",
+    lessonId: 17
   }
 ];

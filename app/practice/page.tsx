@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { BookOpen, CheckCircle2, Mic2, Save, Sparkles, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -13,6 +14,11 @@ type DailyProgressResponse = {
   sentences_spoken?: number;
   words_learned?: number;
   lessons_completed?: number;
+  progress?: {
+    sentences_spoken?: number;
+    words_learned?: number;
+    lessons_completed?: number;
+  };
   error?: string;
 };
 
@@ -23,8 +29,7 @@ const quickActions = [
 ] as const;
 
 export default function PracticePage() {
-  const { userId: activeUserId, isChecking } = useRequiredUserId();
-  const [userId, setUserId] = useState("");
+  const { userId: activeUserId, isChecking } = useRequiredUserId({ redirectIfMissing: false });
   const [sentences, setSentences] = useState(0);
   const [words, setWords] = useState(0);
   const [lessons, setLessons] = useState(0);
@@ -33,13 +38,10 @@ export default function PracticePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (activeUserId) {
-      setUserId(String(activeUserId));
-    }
-  }, [activeUserId]);
-
-  useEffect(() => {
     if (!activeUserId) {
+      setSentences(0);
+      setWords(0);
+      setLessons(0);
       return;
     }
 
@@ -72,14 +74,6 @@ export default function PracticePage() {
     };
   }, [activeUserId]);
 
-  if (isChecking || !activeUserId) {
-    return (
-      <main className="section-shell">
-        <div className="surface-card p-8 text-sm text-stone">Checking account session...</div>
-      </main>
-    );
-  }
-
   function clearFeedback() {
     setStatusMessage(null);
     setError(null);
@@ -89,6 +83,10 @@ export default function PracticePage() {
     setSentences(nextProgress.sentences);
     setWords(nextProgress.words);
     setLessons(nextProgress.lessons);
+  }
+
+  function getSuccessMessage(loggedInMessage: string, guestMessage: string) {
+    return activeUserId ? loggedInMessage : guestMessage;
   }
 
   async function recordSentence() {
@@ -113,7 +111,7 @@ export default function PracticePage() {
       speakingMinutes: 1,
       streakActivity: true
     });
-    setStatusMessage("Sentence practice saved.");
+    setStatusMessage(getSuccessMessage("Sentence practice save ho gayi.", "Sentence practice local mode mein add ho gayi."));
   }
 
   async function learnWords() {
@@ -141,7 +139,7 @@ export default function PracticePage() {
         vocabularyWords: 5
       }
     });
-    setStatusMessage("5 vocabulary words saved to today's progress.");
+    setStatusMessage(getSuccessMessage("5 words aaj ke progress mein save ho gaye.", "5 words local practice mein add ho gaye."));
   }
 
   async function completeLesson() {
@@ -166,7 +164,7 @@ export default function PracticePage() {
       lessonsCompleted: 1,
       streakActivity: true
     });
-    setStatusMessage("Lesson completion saved.");
+    setStatusMessage(getSuccessMessage("Lesson completion save ho gaya.", "Lesson completion local mode mein add ho gaya."));
   }
 
   async function saveDailyProgress(
@@ -181,25 +179,24 @@ export default function PracticePage() {
     },
     showSuccessMessage = true
   ) {
+    if (!activeUserId) {
+      if (showSuccessMessage) {
+        setStatusMessage("Guest mode mein progress local hi rahega. Login karke backend sync karo.");
+      }
+
+      return true;
+    }
+
     setIsSaving(true);
     setStatusMessage(null);
     setError(null);
-
-    const trimmedUserId = userId.trim();
-    const parsedUserId = Number(trimmedUserId);
-
-    if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
-      setIsSaving(false);
-      setError("Enter a valid positive user ID.");
-      return false;
-    }
 
     try {
       const data = await apiFetchJson<DailyProgressResponse>("dailyProgress", {
         method: "POST",
         timeoutMs: 15000,
         body: JSON.stringify({
-          userId: parsedUserId,
+          userId: activeUserId,
           sentences: nextProgress.sentences,
           words: nextProgress.words,
           lessons: nextProgress.lessons
@@ -211,7 +208,7 @@ export default function PracticePage() {
       }
 
       if (showSuccessMessage) {
-        setStatusMessage("Today's progress has been saved.");
+        setStatusMessage("Aaj ka practice backend par sync ho gaya.");
       }
 
       return true;
@@ -238,6 +235,21 @@ export default function PracticePage() {
         subtitle="Aaj kya kiya, kitna kiya, aur kya save hua"
         description="Yeh page quick actions ke liye hai. Jab tum short practice karte ho, yahaan se sentences, words, aur lesson completions ko turant update kar sakte ho."
       />
+
+      {!isChecking && !activeUserId ? (
+        <section className="surface-card p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-forest">Progress save karne ke liye login karo</p>
+            <Link
+              href="/signup"
+              aria-label="Open signup page to sync practice progress"
+              className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
+            >
+              Start Free
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="surface-card halo-panel p-6 sm:p-8">
@@ -309,40 +321,44 @@ export default function PracticePage() {
 
           <div className="mt-6 rounded-[1.6rem] bg-ink p-5 text-white">
             <p className="text-xs uppercase tracking-[0.22em] text-white/65">Save progress</p>
-            <p className="mt-2 text-sm leading-7 text-white/80">Quick actions save to the backend immediately. Use this button if you want to sync the current counters again for the active learner.</p>
-            <button
-              type="button"
-              aria-label="Save all daily practice progress"
-              onClick={() => void saveDailyProgress()}
-              disabled={isSaving}
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-forest/50"
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save All Progress"}
-            </button>
+            <p className="mt-2 text-sm leading-7 text-white/80">
+              {activeUserId
+                ? "Quick actions backend par turant sync hote hain. Zaroorat pade to is button se current counters dobara save kar sakte ho."
+                : "Quick actions abhi local mode mein chal rahe hain. Login ke baad yahi counters backend ke saath sync honge."}
+            </p>
+            {activeUserId ? (
+              <button
+                type="button"
+                aria-label="Save all daily practice progress"
+                onClick={() => void saveDailyProgress()}
+                disabled={isSaving}
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-forest/50"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save All Progress"}
+              </button>
+            ) : (
+              <Link
+                href="/signup"
+                aria-label="Create an account to sync daily practice progress"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
+              >
+                <Save className="h-4 w-4" />
+                Start Free
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
       <section className="surface-card p-6 sm:p-8">
-        <label className="text-sm font-semibold text-ink" htmlFor="user-id">
-          Active user ID
-        </label>
-        <p className="mt-2 text-sm leading-7 text-stone">Local session se user ID auto-fill hota hai. Zaroorat pade to tum ise manually bhi change kar sakte ho.</p>
-        <input
-          id="user-id"
-          aria-label="Edit active user ID"
-          type="number"
-          min="1"
-          step="1"
-          value={userId}
-          onChange={(event) => {
-            clearFeedback();
-            setUserId(event.target.value);
-          }}
-          placeholder="Enter user ID"
-          className="mt-4 h-14 w-full max-w-xs rounded-full border border-ink/10 bg-mist px-5 text-sm text-ink outline-none placeholder:text-stone/50 focus:border-forest"
-        />
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-forest">{activeUserId ? "Synced session" : "Guest mode"}</p>
+        <h2 className="mt-4 font-display text-3xl text-ink">{activeUserId ? "Backend sync is active" : "Practice without login"}</h2>
+        <p className="mt-3 text-sm leading-7 text-stone">
+          {activeUserId
+            ? `User ID ${activeUserId} ke saath tumhara practice backend aur local progress dono ke saath sync ho raha hai.`
+            : "Quick actions sabke liye kaam karte hain. Bas guest mode mein yeh progress is device par local hi rahega jab tak tum login nahi karte."}
+        </p>
 
         {statusMessage ? <p className="mt-4 rounded-2xl bg-forest-soft px-4 py-3 text-sm text-forest">{statusMessage}</p> : null}
         {error ? <p className="mt-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { Route } from "next";
@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { buildSignupHref, defaultAuthenticatedPath, readRedirectPathFromLocation } from "@/lib/auth-navigation";
-import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
+import { apiFetchJson, toAuthApiErrorMessage } from "@/lib/api";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
 import { useUserSession } from "@/lib/use-user-session";
@@ -66,11 +66,11 @@ export default function LoginPage() {
         throw new Error("Login failed.");
       }
 
-      activateLearnerProgress(data.userId);
       storeUserId(data.userId);
-      router.replace(readRedirectPathFromLocation() as Route);
+      activateLearnerProgress(data.userId);
+      router.replace("/dashboard");
     } catch (requestError) {
-      setError(toApiErrorMessage(requestError, "Login failed."));
+      setError(toAuthApiErrorMessage(requestError, "Login nahi ho paaya, dobara try karo."));
     } finally {
       setIsSubmitting(false);
     }
@@ -190,3 +190,4 @@ export default function LoginPage() {
     </main>
   );
 }
+

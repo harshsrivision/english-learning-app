@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { learnerProgressChangedEvent, userSessionChangedEvent } from "@/lib/browser-events";
-import { readLearnerProgress, writeLearnerProgress, type LearnerProgress } from "@/lib/local-progress";
+import { createDefaultLearnerProgress, readLearnerProgress, writeLearnerProgress, type LearnerProgress } from "@/lib/local-progress";
 
 type LearnerProgressValue = LearnerProgress | ((currentProgress: LearnerProgress) => LearnerProgress);
 
 export function useLearnerProgress() {
-  const [progress, setProgressState] = useState<LearnerProgress | null>(null);
+  const [progress, setProgressState] = useState<LearnerProgress>(() => createDefaultLearnerProgress());
 
   useEffect(() => {
     function syncProgress() {
@@ -28,8 +28,7 @@ export function useLearnerProgress() {
 
   function setProgress(nextValue: LearnerProgressValue) {
     setProgressState((currentProgress) => {
-      const resolvedCurrentProgress = currentProgress ?? readLearnerProgress();
-      const resolvedNextProgress = typeof nextValue === "function" ? nextValue(resolvedCurrentProgress) : nextValue;
+      const resolvedNextProgress = typeof nextValue === "function" ? nextValue(currentProgress) : nextValue;
       writeLearnerProgress(resolvedNextProgress);
       return resolvedNextProgress;
     });

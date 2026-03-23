@@ -64,7 +64,18 @@ export function getWeekKey(date = new Date()) {
   return getDateKey(getWeekStart(date));
 }
 
-function getDefaultProgress(date = new Date()): LearnerProgress {
+function createDefaultWeeklyStats(): WeeklyStats {
+  return {
+    vocabularyWords: 0,
+    speakingDrills: 0,
+    perfectGrammarDays: 0,
+    roleplays: 0,
+    articlesRead: 0,
+    writingPieces: 0
+  };
+}
+
+export function createDefaultLearnerProgress(): LearnerProgress {
   return {
     totalXp: 0,
     streakDays: 0,
@@ -74,16 +85,13 @@ function getDefaultProgress(date = new Date()): LearnerProgress {
     vocabularyWords: 0,
     lastActiveDate: null,
     completedPlanByDate: {},
-    weeklyStats: {
-      vocabularyWords: 0,
-      speakingDrills: 0,
-      perfectGrammarDays: 0,
-      roleplays: 0,
-      articlesRead: 0,
-      writingPieces: 0
-    },
-    weekKey: getWeekKey(date)
+    weeklyStats: createDefaultWeeklyStats(),
+    weekKey: ""
   };
+}
+
+function getDefaultProgress() {
+  return createDefaultLearnerProgress();
 }
 
 function clearLegacyProgressStorage() {
@@ -98,8 +106,8 @@ function getProgressStorageKey(userId: number | null = getStoredUserId()) {
   return userId ? `${progressStoragePrefix}:user:${userId}` : `${progressStoragePrefix}:guest`;
 }
 
-function normalizeProgress(rawValue: Partial<LearnerProgress>, date = new Date()): LearnerProgress {
-  const defaultProgress = getDefaultProgress(date);
+function normalizeProgress(rawValue: Partial<LearnerProgress>): LearnerProgress {
+  const defaultProgress = getDefaultProgress();
 
   return {
     ...defaultProgress,
@@ -112,7 +120,8 @@ function normalizeProgress(rawValue: Partial<LearnerProgress>, date = new Date()
     weeklyStats: {
       ...defaultProgress.weeklyStats,
       ...(rawValue.weeklyStats ?? {})
-    }
+    },
+    weekKey: typeof rawValue.weekKey === "string" ? rawValue.weekKey : defaultProgress.weekKey
   };
 }
 
@@ -147,14 +156,14 @@ function readStoredProgressValue(progressStorageKey: string) {
 
 export function readLearnerProgress(date = new Date(), userId: number | null = getStoredUserId()) {
   if (typeof window === "undefined") {
-    return getDefaultProgress(date);
+    return getDefaultProgress();
   }
 
   const progressStorageKey = getProgressStorageKey(userId);
   const storedValue = readStoredProgressValue(progressStorageKey);
 
   if (!storedValue) {
-    const defaultProgress = getDefaultProgress(date);
+    const defaultProgress = getDefaultProgress();
     window.localStorage.setItem(progressStorageKey, JSON.stringify(defaultProgress));
     clearLegacyProgressStorage();
     return defaultProgress;
@@ -162,12 +171,12 @@ export function readLearnerProgress(date = new Date(), userId: number | null = g
 
   try {
     const parsedValue = JSON.parse(storedValue) as Partial<LearnerProgress>;
-    const normalizedValue = syncWeek(normalizeProgress(parsedValue, date), date);
+    const normalizedValue = syncWeek(normalizeProgress(parsedValue), date);
     window.localStorage.setItem(progressStorageKey, JSON.stringify(normalizedValue));
     clearLegacyProgressStorage();
     return normalizedValue;
   } catch {
-    const defaultProgress = getDefaultProgress(date);
+    const defaultProgress = getDefaultProgress();
     window.localStorage.setItem(progressStorageKey, JSON.stringify(defaultProgress));
     clearLegacyProgressStorage();
     return defaultProgress;
@@ -201,7 +210,7 @@ function hasMeaningfulProgress(progress: LearnerProgress) {
 
 export function activateLearnerProgress(userId: number, date = new Date()) {
   if (typeof window === "undefined") {
-    return getDefaultProgress(date);
+    return getDefaultProgress();
   }
 
   const userStorageKey = getProgressStorageKey(userId);
@@ -450,3 +459,5 @@ export function getProgressClass(percent: number) {
 export function formatSpeakingHours(minutes: number) {
   return `${(minutes / 60).toFixed(1)} hrs`;
 }
+
+

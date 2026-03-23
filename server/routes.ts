@@ -115,8 +115,18 @@ apiRouter.get("/health", (_req, res) => {
 
 apiRouter.get("/lessons", (req, res) => {
   const level = req.query.level?.toString();
-  const data = level ? lessons.filter((lesson) => lesson.level === level) : lessons;
-  res.json(data);
+  const data = level ? lessons.filter((lesson) => lesson.cefrLevel === level) : lessons;
+  res.json(
+    data.map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      cefrLevel: lesson.cefrLevel,
+      durationMinutes: lesson.durationMinutes,
+      focus: lesson.focus,
+      hindiSummary: lesson.hindiSummary,
+      unlockRequirement: lesson.unlockRequirement
+    }))
+  );
 });
 
 apiRouter.get("/grammar-topics", (_req, res) => {
@@ -125,10 +135,7 @@ apiRouter.get("/grammar-topics", (_req, res) => {
 
 apiRouter.get("/vocabulary", (req, res) => {
   const category = req.query.category?.toString();
-  const data = category
-    ? vocabularyTerms.filter((term) => term.category.toLowerCase() === category.toLowerCase())
-    : vocabularyTerms;
-
+  const data = category ? vocabularyTerms.filter((term) => term.category.toLowerCase() === category.toLowerCase()) : vocabularyTerms;
   res.json(data);
 });
 

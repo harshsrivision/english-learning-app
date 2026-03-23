@@ -22,7 +22,15 @@ function createSqliteAdapter(db) {
         dialect: "sqlite",
         async query(sql, params = []) {
             const normalizedSql = normalizeSqliteSql(sql).trim();
-            const sqliteParams = params.map((param) => (typeof param === "boolean" ? Number(param) : param));
+            const sqliteParams = params.map((param) => {
+                if (typeof param === "boolean") {
+                    return Number(param);
+                }
+                if (param && typeof param === "object" && !(param instanceof Uint8Array)) {
+                    return JSON.stringify(param);
+                }
+                return param;
+            });
             if (/\bRETURNING\s+id\s*$/i.test(normalizedSql)) {
                 const statement = db.prepare(normalizedSql.replace(/\s+RETURNING\s+id\s*$/i, ""));
                 const result = statement.run(...sqliteParams);
@@ -54,6 +62,9 @@ async function preparePostgresDatabase(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS vocabulary (id SERIAL PRIMARY KEY, word TEXT, meaning TEXT, example TEXT)`);
     await db.query(`CREATE TABLE IF NOT EXISTS vocabulary_progress (id SERIAL PRIMARY KEY, user_id INTEGER, word_id INTEGER, last_seen TEXT, correct_count INTEGER DEFAULT 0)`);
     await db.query(`CREATE TABLE IF NOT EXISTS user_lessons (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, is_unlocked BOOLEAN NOT NULL DEFAULT FALSE)`);
+    await db.query(`CREATE TABLE IF NOT EXISTS chapters (id TEXT PRIMARY KEY, lesson_id INTEGER, title TEXT, hindi_title TEXT, type TEXT, content JSONB, sort_order INTEGER)`);
+    await db.query(`CREATE TABLE IF NOT EXISTS chapter_progress (id SERIAL PRIMARY KEY, user_id INTEGER, lesson_id INTEGER, chapter_id TEXT, completed_at TEXT, score INTEGER DEFAULT 0, UNIQUE(user_id, chapter_id))`);
+    await db.query(`CREATE TABLE IF NOT EXISTS lesson_unlocks (id SERIAL PRIMARY KEY, user_id INTEGER, lesson_id INTEGER, unlocked_at TEXT, UNIQUE(user_id, lesson_id))`);
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT");
@@ -67,6 +78,9 @@ async function preparePostgresDatabase(db) {
     await db.query("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
     await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_chapters_lesson ON chapters(lesson_id, sort_order)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_chapter_progress_user_lesson ON chapter_progress(user_id, lesson_id)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_lesson_unlocks_user ON lesson_unlocks(user_id, lesson_id)");
 }
 function prepareSqliteDatabase(db) {
     db.exec(`
@@ -118,6 +132,34 @@ function prepareSqliteDatabase(db) {
       lesson_id INTEGER NOT NULL,
       is_unlocked INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS chapters (
+      id TEXT PRIMARY KEY,
+      lesson_id INTEGER,
+      title TEXT,
+      hindi_title TEXT,
+      type TEXT,
+      content TEXT,
+      sort_order INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS chapter_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      lesson_id INTEGER,
+      chapter_id TEXT,
+      completed_at TEXT,
+      score INTEGER DEFAULT 0,
+      UNIQUE(user_id, chapter_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS lesson_unlocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      lesson_id INTEGER,
+      unlocked_at TEXT,
+      UNIQUE(user_id, lesson_id)
+    );
   `);
     const userColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((column) => column.name));
     const progressColumns = new Set(db.prepare("PRAGMA table_info(progress)").all().map((column) => column.name));
@@ -149,21 +191,36 @@ function prepareSqliteDatabase(db) {
     db.exec("CREATE INDEX IF NOT EXISTS idx_vocabulary_progress_user_word ON vocabulary_progress(user_id, word_id)");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_lessons_user_lesson ON user_lessons(user_id, lesson_id)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_user_lessons_user_unlock ON user_lessons(user_id, is_unlocked)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_chapters_lesson ON chapters(lesson_id, sort_order)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_chapter_progress_user_lesson ON chapter_progress(user_id, lesson_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_lesson_unlocks_user ON lesson_unlocks(user_id, lesson_id)");
 }
 async function seedVocabulary(db) {
     const existingTerms = await db.query("SELECT id, word, meaning, example FROM vocabulary");
-    const existingTermsByWord = new Map(existingTerms.rows
-        .filter((row) => typeof row.word === "string" && row.word.trim().length > 0)
-        .map((row) => [row.word.trim().toLowerCase(), row]));
+    const existingTermsById = new Map(existingTerms.rows.map((row) => [Number(row.id), row]));
     for (const term of data_1.vocabularyTerms) {
-        const wordKey = term.english.trim().toLowerCase();
-        const existingTerm = existingTermsByWord.get(wordKey);
+        const existingTerm = existingTermsById.get(term.id);
         if (!existingTerm) {
-            await db.query("INSERT INTO vocabulary (word, meaning, example) VALUES ($1, $2, $3)", [term.english, term.hindi, term.usage]);
+            await db.query("INSERT INTO vocabulary (id, word, meaning, example) VALUES ($1, $2, $3, $4)", [term.id, term.english, term.hindi, term.usage]);
             continue;
         }
-        if (existingTerm.meaning !== term.hindi || existingTerm.example !== term.usage || existingTerm.word !== term.english) {
-            await db.query("UPDATE vocabulary SET word = $1, meaning = $2, example = $3 WHERE id = $4", [term.english, term.hindi, term.usage, existingTerm.id]);
+        if (existingTerm.word !== term.english || existingTerm.meaning !== term.hindi || existingTerm.example !== term.usage) {
+            await db.query("UPDATE vocabulary SET word = $1, meaning = $2, example = $3 WHERE id = $4", [term.english, term.hindi, term.usage, term.id]);
+        }
+    }
+}
+async function seedChapters(db) {
+    const existingChapters = await db.query("SELECT id FROM chapters LIMIT 1");
+    if (existingChapters.rows.length > 0) {
+        return;
+    }
+    for (const lesson of data_1.lessons) {
+        for (const [index, chapter] of lesson.chapters.entries()) {
+            const contentValue = db.dialect === "postgres" ? chapter.content : JSON.stringify(chapter.content);
+            const sql = db.dialect === "postgres"
+                ? "INSERT INTO chapters (id, lesson_id, title, hindi_title, type, content, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)"
+                : "INSERT INTO chapters (id, lesson_id, title, hindi_title, type, content, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+            await db.query(sql, [chapter.id, lesson.id, chapter.title, chapter.hindiTitle, chapter.type, contentValue, index + 1]);
         }
     }
 }
@@ -186,14 +243,15 @@ async function initDB() {
                 const db = createPostgresAdapter();
                 await preparePostgresDatabase(db);
                 await seedVocabulary(db);
+                await seedChapters(db);
                 return db;
             }
             const databasePath = resolveDatabasePath();
-            console.warn(`DATABASE_URL is not configured. Using local SQLite fallback at ${databasePath}.`);
             const sqlite = new node_sqlite_1.DatabaseSync(databasePath);
             prepareSqliteDatabase(sqlite);
             const db = createSqliteAdapter(sqlite);
             await seedVocabulary(db);
+            await seedChapters(db);
             return db;
         })().catch((error) => {
             dbPromise = null;
