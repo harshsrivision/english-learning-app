@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { KeyRound, Mail, UserRound } from "lucide-react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { apiFetchJson, toAuthApiErrorMessage } from "@/lib/api";
+import { readRedirectPathFromLocation } from "@/lib/auth-navigation";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
 
@@ -51,7 +53,7 @@ export function DashboardAccountForm() {
 
       storeUserId(data.userId);
       activateLearnerProgress(data.userId);
-      router.replace("/dashboard");
+      router.replace(readRedirectPathFromLocation() as Route);
     } catch (requestError) {
       setError(toAuthApiErrorMessage(requestError, "Signup nahi ho paaya, dobara try karo."));
     } finally {
@@ -63,7 +65,7 @@ export function DashboardAccountForm() {
     <div className="surface-card p-6 sm:p-8">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-forest">Create Account</p>
       <h2 className="mt-4 font-display text-3xl text-ink">Learner profile banao aur session save karo</h2>
-      <p className="mt-3 max-w-xl text-sm leading-7 text-stone">Name, email, aur password ke saath account create karo. Signup ke baad tum seedha dashboard par pahunch jaoge.</p>
+      <p className="mt-3 max-w-xl text-sm leading-7 text-stone">Name, email, aur password ke saath account create karo. Signup ke baad tum seedha apne learning flow par pahunch jaoge.</p>
 
       <form onSubmit={(event) => void createUser(event)} className="mt-6 space-y-5">
         <label className="block">

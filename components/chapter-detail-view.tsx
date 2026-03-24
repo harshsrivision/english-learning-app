@@ -234,11 +234,11 @@ export function ChapterDetailView({ lessonId, chapterId }: ChapterDetailProps) {
           <Link href="/lessons" aria-label="Open lessons page" className="hover:text-ink">
             Lessons
           </Link>
-          <span>›</span>
+          <span>{">"}</span>
           <Link href={buildLessonHref(displayLesson.id)} aria-label={`Open lesson ${displayLesson.title}`} className="hover:text-ink">
             {displayLesson.title}
           </Link>
-          <span>›</span>
+          <span>{">"}</span>
           <span className="font-semibold text-ink">{chapter?.title ?? "Chapter"}</span>
         </nav>
       ) : null}
@@ -342,7 +342,7 @@ export function ChapterDetailView({ lessonId, chapterId }: ChapterDetailProps) {
                     aria-label={nextChapter ? `Open next chapter ${nextChapter.title}` : `Go back to lesson ${displayLesson.title}`}
                     className="mt-4 inline-flex rounded-full bg-forest px-6 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
                   >
-                    {nextChapter ? "Next Chapter ?" : "Back to Lesson ?"}
+                    {nextChapter ? "Next Chapter ->" : "Back to Lesson ->"}
                   </Link>
                 ) : null}
               </section>

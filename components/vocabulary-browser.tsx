@@ -222,7 +222,7 @@ export function VocabularyBrowser() {
                       onClick={() => setExpandedWordId(isExpanded ? null : word.id)}
                       className="text-lg text-stone hover:text-ink"
                     >
-                      {isExpanded ? "?" : "?"}
+                      {isExpanded ? "Hide" : "More"}
                     </button>
                   </div>
 
@@ -280,7 +280,7 @@ export function VocabularyBrowser() {
                       onClick={() => void toggleLearned(word.id)}
                       className={`w-full rounded-full px-6 py-3 text-sm font-bold ${isLearned ? "bg-green-100 text-green-800" : "bg-forest text-white transition hover:bg-forest-dark"}`}
                     >
-                      {isLearned ? "Learned ?" : "I know this"}
+                      {isLearned ? "Learned" : "I know this"}
                     </button>
                   </div>
                 </article>

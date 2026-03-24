@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import type { Route } from "next";
@@ -68,7 +68,7 @@ export default function LoginPage() {
 
       storeUserId(data.userId);
       activateLearnerProgress(data.userId);
-      router.replace("/dashboard");
+      router.replace(readRedirectPathFromLocation() as Route);
     } catch (requestError) {
       setError(toAuthApiErrorMessage(requestError, "Login nahi ho paaya, dobara try karo."));
     } finally {
