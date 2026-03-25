@@ -46,12 +46,14 @@ export function CoursePreviewCard({ level, title, subtitle, duration, descriptio
       <p className="text-sm leading-7 text-stone">{description}</p>
       <Link
         href={href as Route}
-        aria-label={`Start lesson ${title}`}
+        aria-label={`Explore learning path ${title}`}
         className="mt-auto inline-flex items-center gap-2 text-sm font-bold text-forest transition hover:text-forest-dark"
       >
-        Start Lesson
+        Explore Path
         <ArrowRight className="h-4 w-4" />
       </Link>
     </motion.article>
   );
 }
+
+

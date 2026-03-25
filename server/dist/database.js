@@ -6,6 +6,7 @@ const node_path_1 = require("node:path");
 const node_sqlite_1 = require("node:sqlite");
 const pg_1 = require("pg");
 const data_1 = require("./data");
+const curriculum_data_1 = require("./generated/curriculum-data");
 let dbPromise = null;
 function resolveDatabasePath() {
     const serverDatabasePath = (0, node_path_1.resolve)(process.cwd(), "server", "database.db");
@@ -65,6 +66,9 @@ async function preparePostgresDatabase(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS chapters (id TEXT PRIMARY KEY, lesson_id INTEGER, title TEXT, hindi_title TEXT, type TEXT, content JSONB, sort_order INTEGER)`);
     await db.query(`CREATE TABLE IF NOT EXISTS chapter_progress (id SERIAL PRIMARY KEY, user_id INTEGER, lesson_id INTEGER, chapter_id TEXT, completed_at TEXT, score INTEGER DEFAULT 0, UNIQUE(user_id, chapter_id))`);
     await db.query(`CREATE TABLE IF NOT EXISTS lesson_unlocks (id SERIAL PRIMARY KEY, user_id INTEGER, lesson_id INTEGER, unlocked_at TEXT, UNIQUE(user_id, lesson_id))`);
+    await db.query(`CREATE TABLE IF NOT EXISTS course_levels (level_id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, cefr_band TEXT NOT NULL, outcome TEXT NOT NULL, chapter_count INTEGER NOT NULL, lesson_count INTEGER NOT NULL, created_at TEXT DEFAULT NOW()::text)`);
+    await db.query(`CREATE TABLE IF NOT EXISTS course_chapters (chapter_id TEXT PRIMARY KEY, level_id INTEGER NOT NULL REFERENCES course_levels(level_id) ON DELETE CASCADE, order_index INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, created_at TEXT DEFAULT NOW()::text, UNIQUE(level_id, order_index))`);
+    await db.query(`CREATE TABLE IF NOT EXISTS course_lessons (lesson_id TEXT PRIMARY KEY, level_id INTEGER NOT NULL REFERENCES course_levels(level_id) ON DELETE CASCADE, level_title TEXT NOT NULL, cefr_band TEXT NOT NULL, chapter_id TEXT NOT NULL REFERENCES course_chapters(chapter_id) ON DELETE CASCADE, chapter_title TEXT NOT NULL, order_index INTEGER NOT NULL, global_order_index INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, learning_objective TEXT NOT NULL, grammar_topic JSONB NOT NULL, content JSONB NOT NULL, vocabulary_list JSONB NOT NULL, exercises JSONB NOT NULL, quiz JSONB NOT NULL, answers JSONB NOT NULL, common_mistakes JSONB NOT NULL, confidence_tip TEXT NOT NULL, revision JSONB NOT NULL, unlock_logic JSONB NOT NULL, created_at TEXT DEFAULT NOW()::text, UNIQUE(chapter_id, order_index))`);
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT");
     await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT");
@@ -81,6 +85,9 @@ async function preparePostgresDatabase(db) {
     await db.query("CREATE INDEX IF NOT EXISTS idx_chapters_lesson ON chapters(lesson_id, sort_order)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_chapter_progress_user_lesson ON chapter_progress(user_id, lesson_id)");
     await db.query("CREATE INDEX IF NOT EXISTS idx_lesson_unlocks_user ON lesson_unlocks(user_id, lesson_id)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_course_chapters_level_order ON course_chapters(level_id, order_index)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_course_lessons_level_order ON course_lessons(level_id, global_order_index)");
+    await db.query("CREATE INDEX IF NOT EXISTS idx_course_lessons_chapter_order ON course_lessons(chapter_id, order_index)");
 }
 function prepareSqliteDatabase(db) {
     db.exec(`
@@ -160,6 +167,52 @@ function prepareSqliteDatabase(db) {
       unlocked_at TEXT,
       UNIQUE(user_id, lesson_id)
     );
+
+    CREATE TABLE IF NOT EXISTS course_levels (
+      level_id INTEGER PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      cefr_band TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      chapter_count INTEGER NOT NULL,
+      lesson_count INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS course_chapters (
+      chapter_id TEXT PRIMARY KEY,
+      level_id INTEGER NOT NULL,
+      order_index INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(level_id, order_index)
+    );
+
+    CREATE TABLE IF NOT EXISTS course_lessons (
+      lesson_id TEXT PRIMARY KEY,
+      level_id INTEGER NOT NULL,
+      level_title TEXT NOT NULL,
+      cefr_band TEXT NOT NULL,
+      chapter_id TEXT NOT NULL,
+      chapter_title TEXT NOT NULL,
+      order_index INTEGER NOT NULL,
+      global_order_index INTEGER NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      learning_objective TEXT NOT NULL,
+      grammar_topic TEXT NOT NULL,
+      content TEXT NOT NULL,
+      vocabulary_list TEXT NOT NULL,
+      exercises TEXT NOT NULL,
+      quiz TEXT NOT NULL,
+      answers TEXT NOT NULL,
+      common_mistakes TEXT NOT NULL,
+      confidence_tip TEXT NOT NULL,
+      revision TEXT NOT NULL,
+      unlock_logic TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(chapter_id, order_index)
+    );
   `);
     const userColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((column) => column.name));
     const progressColumns = new Set(db.prepare("PRAGMA table_info(progress)").all().map((column) => column.name));
@@ -194,6 +247,16 @@ function prepareSqliteDatabase(db) {
     db.exec("CREATE INDEX IF NOT EXISTS idx_chapters_lesson ON chapters(lesson_id, sort_order)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_chapter_progress_user_lesson ON chapter_progress(user_id, lesson_id)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_lesson_unlocks_user ON lesson_unlocks(user_id, lesson_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_course_chapters_level_order ON course_chapters(level_id, order_index)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_course_lessons_level_order ON course_lessons(level_id, global_order_index)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_course_lessons_chapter_order ON course_lessons(chapter_id, order_index)");
+}
+function toStructuredValue(db, value) {
+    return db.dialect === "postgres" ? value : JSON.stringify(value);
+}
+async function getRowCount(db, tableName) {
+    const result = await db.query(`SELECT COUNT(*) AS count FROM ${tableName}`);
+    return Number(result.rows[0]?.count ?? 0);
 }
 async function seedVocabulary(db) {
     const existingTerms = await db.query("SELECT id, word, meaning, example FROM vocabulary");
@@ -216,12 +279,68 @@ async function seedChapters(db) {
     }
     for (const lesson of data_1.lessons) {
         for (const [index, chapter] of lesson.chapters.entries()) {
-            const contentValue = db.dialect === "postgres" ? chapter.content : JSON.stringify(chapter.content);
-            const sql = db.dialect === "postgres"
-                ? "INSERT INTO chapters (id, lesson_id, title, hindi_title, type, content, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)"
-                : "INSERT INTO chapters (id, lesson_id, title, hindi_title, type, content, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)";
-            await db.query(sql, [chapter.id, lesson.id, chapter.title, chapter.hindiTitle, chapter.type, contentValue, index + 1]);
+            await db.query("INSERT INTO chapters (id, lesson_id, title, hindi_title, type, content, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)", [
+                chapter.id,
+                lesson.id,
+                chapter.title,
+                chapter.hindiTitle,
+                chapter.type,
+                toStructuredValue(db, chapter.content),
+                index + 1
+            ]);
         }
+    }
+}
+async function seedCourseCurriculum(db) {
+    const expectedLevelCount = curriculum_data_1.curriculumStructure.levels.length;
+    const expectedChapterCount = curriculum_data_1.curriculumStructure.levels.reduce((sum, level) => sum + level.chapters.length, 0);
+    const expectedLessonCount = curriculum_data_1.completeCurriculumCourse.lessons.length;
+    const [currentLevelCount, currentChapterCount, currentLessonCount] = await Promise.all([
+        getRowCount(db, "course_levels"),
+        getRowCount(db, "course_chapters"),
+        getRowCount(db, "course_lessons")
+    ]);
+    if (currentLevelCount === expectedLevelCount && currentChapterCount === expectedChapterCount && currentLessonCount === expectedLessonCount) {
+        return;
+    }
+    await db.query("DELETE FROM course_lessons");
+    await db.query("DELETE FROM course_chapters");
+    await db.query("DELETE FROM course_levels");
+    for (const level of curriculum_data_1.curriculumStructure.levels) {
+        await db.query("INSERT INTO course_levels (level_id, slug, title, cefr_band, outcome, chapter_count, lesson_count) VALUES ($1, $2, $3, $4, $5, $6, $7)", [level.level, level.slug, level.title, level.cefr_band, level.outcome, level.chapter_count, level.lesson_count]);
+        for (const chapter of level.chapters) {
+            await db.query("INSERT INTO course_chapters (chapter_id, level_id, order_index, title, summary) VALUES ($1, $2, $3, $4, $5)", [
+                chapter.chapter_id,
+                level.level,
+                chapter.order_index,
+                chapter.title,
+                chapter.summary
+            ]);
+        }
+    }
+    for (const lesson of curriculum_data_1.completeCurriculumCourse.lessons) {
+        await db.query("INSERT INTO course_lessons (lesson_id, level_id, level_title, cefr_band, chapter_id, chapter_title, order_index, global_order_index, title, learning_objective, grammar_topic, content, vocabulary_list, exercises, quiz, answers, common_mistakes, confidence_tip, revision, unlock_logic) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)", [
+            lesson.lesson_id,
+            lesson.level,
+            lesson.level_title,
+            lesson.cefr_band,
+            lesson.chapter_id,
+            lesson.chapter,
+            lesson.order_index,
+            lesson.global_order_index,
+            lesson.title,
+            lesson.learning_objective,
+            toStructuredValue(db, lesson.grammar_topic),
+            toStructuredValue(db, lesson.content),
+            toStructuredValue(db, lesson.vocabulary_list),
+            toStructuredValue(db, lesson.exercises),
+            toStructuredValue(db, lesson.quiz),
+            toStructuredValue(db, lesson.answers),
+            toStructuredValue(db, lesson.common_mistakes),
+            lesson.confidence_tip,
+            toStructuredValue(db, lesson.revision),
+            toStructuredValue(db, lesson.unlock_logic)
+        ]);
     }
 }
 function createPostgresAdapter() {
@@ -244,6 +363,7 @@ async function initDB() {
                 await preparePostgresDatabase(db);
                 await seedVocabulary(db);
                 await seedChapters(db);
+                await seedCourseCurriculum(db);
                 return db;
             }
             const databasePath = resolveDatabasePath();
@@ -252,6 +372,7 @@ async function initDB() {
             const db = createSqliteAdapter(sqlite);
             await seedVocabulary(db);
             await seedChapters(db);
+            await seedCourseCurriculum(db);
             return db;
         })().catch((error) => {
             dbPromise = null;

@@ -4,6 +4,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetchJson } from "@/lib/api";
+import { buildSignupHref as buildAuthSignupHref } from "@/lib/auth-navigation";
 import { readGuestCompletedChapterIds } from "@/lib/guest-learning-progress";
 import {
   genericLearningErrorMessage,
@@ -47,6 +48,7 @@ function buildLessonSignupHref(lessonId: number) {
 
 export function LessonsLibrary() {
   const { userId, isChecking } = useUserSession();
+  const signupHref = buildAuthSignupHref("/lessons");
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
   const [guestCompletedChapterIds, setGuestCompletedChapterIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,7 +128,7 @@ export function LessonsLibrary() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-forest">Lesson 1 free hai. Aage ke lessons unlock karne ke liye account banao.</p>
             <Link
-              href="/signup"
+              href={signupHref}
               aria-label="Create account to unlock more lessons"
               className="rounded-full border border-ink/15 px-6 py-3 text-sm font-semibold text-ink transition hover:border-forest/40"
             >

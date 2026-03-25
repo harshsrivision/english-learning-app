@@ -1,12 +1,14 @@
 ﻿/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { RoadmapLevelCard } from "@/components/roadmap-level-card";
 import { SectionHeading } from "@/components/section-heading";
-import { roadmapLevels, type CefrLevel } from "@/lib/app-data";
+import { type CefrLevel, roadmapLevels } from "@/lib/app-data";
+import { buildCurriculumLevelHref, mapRoadmapLevelToCurriculumLevel } from "@/lib/curriculum";
 import { getCurrentCefrLevel, getLevelIndex } from "@/lib/local-progress";
 import { useLearnerProgress } from "@/lib/use-learner-progress";
 
@@ -27,6 +29,7 @@ export default function RoadmapPage() {
   }, [currentLevel, hasChosenOpenLevel]);
 
   const currentLevelIndex = getLevelIndex(currentLevel);
+  const currentCurriculumHref = buildCurriculumLevelHref(mapRoadmapLevelToCurriculumLevel(currentLevel)) as Route;
 
   return (
     <main className="section-shell space-y-10">
@@ -44,8 +47,8 @@ export default function RoadmapPage() {
             <p className="mt-2 text-sm font-medium text-stone">Abhi tum isi stage tak pahunch chuke ho</p>
             <p className="mt-3 text-base font-medium text-stone">Aaj ke XP ke hisaab se yahin tak ka path khul chuka hai.</p>
           </div>
-          <Link href="/lessons" aria-label="Start current roadmap lessons" className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white">
-            Start This Level
+          <Link href={currentCurriculumHref} aria-label="Explore current roadmap curriculum" className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white">
+            Explore This Level
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -98,5 +101,4 @@ export default function RoadmapPage() {
     </main>
   );
 }
-
 

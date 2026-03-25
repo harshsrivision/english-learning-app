@@ -1,14 +1,16 @@
-"use client";
+﻿"use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LogOut, Menu, Mic2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { buildLoginHref, buildSignupHref, defaultAuthenticatedPath } from "@/lib/auth-navigation";
 import { clearStoredUserId } from "@/lib/user-session";
 import { useUserSession } from "@/lib/use-user-session";
 
 const learnLinks = [
+  { href: "/curriculum", label: "Curriculum" },
   { href: "/lessons", label: "Lessons" },
   { href: "/grammar", label: "Grammar" },
   { href: "/vocabulary", label: "Vocabulary" },
@@ -45,6 +47,9 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
   const isLearnActive = learnLinks.some((link) => pathname.startsWith(link.href));
   const isPracticeActive = practiceLinks.some((link) => pathname.startsWith(link.href));
   const isSpeakingActive = pathname.startsWith("/speaking");
+  const authRedirectPath = pathname === "/" ? defaultAuthenticatedPath : pathname;
+  const loginHref = buildLoginHref(authRedirectPath);
+  const signupHref = buildSignupHref(authRedirectPath);
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -181,14 +186,14 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
           ) : (
             <>
               <Link
-                href="/login"
+                href={loginHref}
                 aria-label="Log in to your account"
                 className="inline-flex items-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink transition hover:border-forest/40 hover:text-forest"
               >
                 Login
               </Link>
               <Link
-                href="/signup"
+                href={signupHref}
                 aria-label="Create a free account"
                 className="inline-flex items-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white transition hover:bg-forest-dark"
               >
@@ -301,14 +306,14 @@ function NavbarContent({ pathname, hasSession }: NavbarContentProps) {
                 ) : (
                   <>
                     <Link
-                      href="/login"
+                      href={loginHref}
                       aria-label="Log in to your account"
                       className="inline-flex items-center justify-center rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink"
                     >
                       Login
                     </Link>
                     <Link
-                      href="/signup"
+                      href={signupHref}
                       aria-label="Create a free account"
                       className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
                     >
@@ -331,3 +336,6 @@ export function Navbar() {
 
   return <NavbarContent key={pathname} pathname={pathname} hasSession={hasSession} />;
 }
+
+
+

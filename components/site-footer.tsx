@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { BookOpen, Map, Mic2, Trophy } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { buildLoginHref, defaultAuthenticatedPath } from "@/lib/auth-navigation";
 
 const footerColumns = [
   {
@@ -19,6 +21,7 @@ const footerColumns = [
     title: "Learn",
     subtitle: "Core learning pages",
     links: [
+      { href: "/curriculum", label: "Curriculum" },
       { href: "/lessons", label: "Lessons" },
       { href: "/grammar", label: "Grammar" },
       { href: "/vocabulary", label: "Vocabulary" }
@@ -45,13 +48,15 @@ const footerColumns = [
 ] as const;
 
 const quickLinks = [
-  { href: "/lessons", label: "Lessons", icon: BookOpen },
+  { href: "/curriculum", label: "Curriculum", icon: BookOpen },
   { href: "/speaking", label: "Speaking", icon: Mic2 },
   { href: "/roadmap", label: "Roadmap", icon: Map },
   { href: "/achievements", label: "Achievements", icon: Trophy }
 ] as const;
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  const loginHref = buildLoginHref(pathname === "/" ? defaultAuthenticatedPath : pathname);
   return (
     <footer className="border-t border-ink/10 bg-white/95">
       <motion.div
@@ -70,7 +75,7 @@ export function SiteFooter() {
               </div>
               <div className="space-y-3 text-sm text-stone">
                 {column.links.map((link) => (
-                  <Link key={link.label} href={link.href as Route} aria-label={`Open ${link.label}`} className="block transition hover:text-forest">
+                  <Link key={link.label} href={link.href === "/login" ? loginHref : (link.href as Route)} aria-label={`Open ${link.label}`} className="block transition hover:text-forest">
                     {link.label}
                   </Link>
                 ))}
@@ -87,7 +92,7 @@ export function SiteFooter() {
               return (
                 <Link
                   key={link.label}
-                  href={link.href as Route}
+                  href={link.href === "/login" ? loginHref : (link.href as Route)}
                   aria-label={`Open ${link.label}`}
                   className="inline-flex items-center gap-2 rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink transition hover:border-forest hover:text-forest"
                 >
@@ -102,3 +107,6 @@ export function SiteFooter() {
     </footer>
   );
 }
+
+
+

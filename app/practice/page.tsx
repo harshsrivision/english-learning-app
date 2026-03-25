@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -6,6 +6,7 @@ import { BookOpen, CheckCircle2, Mic2, Save, Sparkles, Zap } from "lucide-react"
 import { useEffect, useState } from "react";
 import { SectionHeading } from "@/components/section-heading";
 import { apiFetchJson, getApiUrl, toApiErrorMessage } from "@/lib/api";
+import { buildSignupHref } from "@/lib/auth-navigation";
 import { recordLearnerProgress } from "@/lib/local-progress";
 import { useRequiredUserId } from "@/lib/use-required-user-id";
 
@@ -30,6 +31,7 @@ const quickActions = [
 
 export default function PracticePage() {
   const { userId: activeUserId, isChecking } = useRequiredUserId({ redirectIfMissing: false });
+  const signupHref = buildSignupHref("/practice");
   const [sentences, setSentences] = useState(0);
   const [words, setWords] = useState(0);
   const [lessons, setLessons] = useState(0);
@@ -241,7 +243,7 @@ export default function PracticePage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-forest">Progress save karne ke liye login karo</p>
             <Link
-              href="/signup"
+              href={signupHref}
               aria-label="Open signup page to sync practice progress"
               className="inline-flex items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
             >
@@ -339,7 +341,7 @@ export default function PracticePage() {
               </button>
             ) : (
               <Link
-                href="/signup"
+                href={signupHref}
                 aria-label="Create an account to sync daily practice progress"
                 className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
               >

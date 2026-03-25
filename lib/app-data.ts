@@ -1,4 +1,4 @@
-export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
+﻿export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
 
 export type HomeStep = {
   id: string;
@@ -184,7 +184,7 @@ export const coursePreviewCards: CoursePreview[] = [
     hindiSubtitle: "Apna parichay dena aur basic greeting ko natural banana",
     duration: "15 min",
     description: "Short self-introduction, name, city, and polite greeting flow.",
-    href: "/lessons"
+    href: "/curriculum"
   },
   {
     id: 2,
@@ -193,7 +193,7 @@ export const coursePreviewCards: CoursePreview[] = [
     hindiSubtitle: "Office meetings aur updates ko confidence se bolna",
     duration: "20 min",
     description: "Useful lines for meetings, follow-ups, and asking for clarification.",
-    href: "/lessons"
+    href: "/curriculum"
   },
   {
     id: 3,
@@ -202,7 +202,7 @@ export const coursePreviewCards: CoursePreview[] = [
     hindiSubtitle: "Presentation mein structure, clarity, aur business words",
     duration: "30 min",
     description: "Present ideas with structure, control, and better business vocabulary.",
-    href: "/lessons"
+    href: "/curriculum"
   },
   {
     id: 4,
@@ -211,7 +211,7 @@ export const coursePreviewCards: CoursePreview[] = [
     hindiSubtitle: "Senior-level tone, persuasion aur negotiation",
     duration: "35 min",
     description: "Lead high-stakes conversations with calm, polish, and authority.",
-    href: "/lessons"
+    href: "/curriculum"
   }
 ];
 
@@ -522,7 +522,7 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     hindiSubtitle: "Agar... toh... wale sentences",
     level: "B1",
     duration: "20 min",
-    hook: "If I study, I will pass — yeh pattern B1 se zaroor seekho.",
+    hook: "If I study, I will pass â€” yeh pattern B1 se zaroor seekho.",
     description: "0, 1st, 2nd conditional with real office and life examples.",
     lessonId: 21
   },
@@ -552,8 +552,10 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     hindiSubtitle: "Ideas ko jodne wale phrases",
     level: "B1",
     duration: "15 min",
-    hook: "However, therefore, in addition — presentations ke liye essential.",
+    hook: "However, therefore, in addition â€” presentations ke liye essential.",
     description: "Make your English flow naturally from one idea to the next.",
     lessonId: 17
   }
 ];
+
+

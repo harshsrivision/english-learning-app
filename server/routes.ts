@@ -3,8 +3,11 @@ import { z } from "zod";
 import { analyzeSentence } from "./ai";
 import { grammarTopics, lessons, scenarios, vocabularyTerms } from "./data";
 import { scorePronunciation } from "./pronunciation";
+import { curriculumRouter } from "./curriculum-routes";
 
 export const apiRouter = Router();
+
+apiRouter.use("/curriculum", curriculumRouter);
 
 type ProficiencyLevel = "beginner" | "intermediate" | "advanced" | "professional";
 

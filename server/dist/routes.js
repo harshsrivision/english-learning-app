@@ -6,7 +6,9 @@ const zod_1 = require("zod");
 const ai_1 = require("./ai");
 const data_1 = require("./data");
 const pronunciation_1 = require("./pronunciation");
+const curriculum_routes_1 = require("./curriculum-routes");
 exports.apiRouter = (0, express_1.Router)();
+exports.apiRouter.use("/curriculum", curriculum_routes_1.curriculumRouter);
 function getWordCount(text) {
     return text
         .trim()

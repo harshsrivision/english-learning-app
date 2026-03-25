@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 const endpointPaths = {
   analyze: "/analyze",
@@ -8,6 +8,8 @@ const endpointPaths = {
   correct: "/correct",
   correction: "/correct",
   chapterProgress: "/chapter-progress",
+  curriculumStructure: "/api/curriculum/structure",
+  curriculumSystems: "/api/curriculum/systems",
   dailyProgress: "/daily-progress",
   lessonProgress: "/lesson-progress",
   lessonUnlocks: "/lesson-unlocks",
@@ -221,4 +223,6 @@ export async function correctSentence(sentence: string) {
     body: JSON.stringify({ sentence })
   });
 }
+
+
 
