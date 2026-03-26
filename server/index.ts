@@ -1,17 +1,19 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { analyzeSentence, correctSentence } from "./ai";
 import { hashPassword, verifyPassword } from "./auth";
 import { conversationReply } from "./conversation";
 import { lessons, vocabularyTerms } from "./data";
-import { initDB, type AppDatabase } from "./database";
+import { getPostgresPool, initDB, type AppDatabase } from "./database";
 import { ensureUserLessonsInitialized, saveLessonProgress } from "./lesson-progression";
 import { scorePronunciation } from "./pronunciation";
 import { apiRouter } from "./routes";
+import { getCurriculumLevel } from "./generated/curriculum-data";
 
-dotenv.config({ path: resolve(process.cwd(), ".env") });
+dotenv.config({ path: [resolve(process.cwd(), ".env.local"), resolve(process.cwd(), ".env")] });
 
 if (!process.env.PORT && process.env.API_PORT) {
   process.env.PORT = process.env.API_PORT;
@@ -195,6 +197,20 @@ function getLessonListItem(lesson: (typeof lessons)[number]) {
     hindiSummary: lesson.hindiSummary,
     unlockRequirement: lesson.unlockRequirement
   };
+}
+
+function normalizeCurriculumChapterId(chapterId: string) {
+  if (/^L\d+-C\d+$/i.test(chapterId)) {
+    return chapterId.toUpperCase();
+  }
+
+  const match = chapterId.match(/^(\d+)-(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return `L${match[1]}-C${match[2]}`;
 }
 
 function parseStoredChapterContent(content: unknown) {
@@ -528,6 +544,40 @@ async function bootstrap() {
     );
   }
 
+  app.get("/seed-curriculum", async (req, res) => {
+    const expectedKey = process.env.SEED_KEY;
+    const providedKey = typeof req.query.key === "string" ? req.query.key : "";
+
+    if (!expectedKey || providedKey !== expectedKey) {
+      return res.status(403).json({ error: "Forbidden." });
+    }
+
+    if (db.dialect !== "postgres") {
+      return res.status(503).json({ error: "Seeding requires PostgreSQL." });
+    }
+
+    const pool = getPostgresPool();
+
+    if (!pool) {
+      return res.status(503).json({ error: "Database is not configured." });
+    }
+
+    try {
+      const [schemaSql, seedSql] = await Promise.all([
+        readFile(resolve(process.cwd(), "db", "course-curriculum-schema.sql"), "utf8"),
+        readFile(resolve(process.cwd(), "db", "generated", "course-curriculum-seed.sql"), "utf8")
+      ]);
+
+      await pool.query(schemaSql);
+      await pool.query(seedSql);
+
+      return res.json({ success: true, message: "Database seeded" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Database seeding failed.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
   app.post("/signup", async (req, res) => {
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
@@ -713,12 +763,17 @@ async function bootstrap() {
     }
 
     const lesson = getLessonById(lessonId);
+    const curriculumLevel = getCurriculumLevel(lessonId);
+    const normalizedCurriculumChapterId = normalizeCurriculumChapterId(chapterId);
+    const isCurriculumChapter = Boolean(curriculumLevel && normalizedCurriculumChapterId);
 
-    if (!lesson) {
+    if (!lesson && !curriculumLevel) {
       return res.status(404).json({ error: "Lesson not found." });
     }
 
-    const chapterExists = lesson.chapters.some((chapter) => chapter.id === chapterId);
+    const chapterExists = isCurriculumChapter
+      ? curriculumLevel?.chapters.some((chapter) => chapter.chapter_id === normalizedCurriculumChapterId)
+      : lesson?.chapters.some((chapter) => chapter.id === chapterId);
 
     if (!chapterExists) {
       return res.status(404).json({ error: "Chapter not found." });
@@ -758,22 +813,25 @@ async function bootstrap() {
         [userId, lessonId]
       );
 
-      const isLessonCompleted = completedRows.length >= lesson.chapters.length;
+      const totalChapterCount = isCurriculumChapter ? curriculumLevel?.chapters.length ?? 0 : lesson?.chapters.length ?? 0;
+      const isLessonCompleted = totalChapterCount > 0 && completedRows.length >= totalChapterCount;
       let nextLessonUnlocked = false;
 
-      await ensureLessonUnlock(userId, lessonId);
+      if (!isCurriculumChapter && lesson) {
+        await ensureLessonUnlock(userId, lessonId);
 
-      if (isLessonCompleted) {
-        const nextLessonId = getNextLessonId(lessonId);
+        if (isLessonCompleted) {
+          const nextLessonId = getNextLessonId(lessonId);
 
-        if (nextLessonId !== null) {
-          nextLessonUnlocked = await ensureLessonUnlock(userId, nextLessonId);
-        }
+          if (nextLessonId !== null) {
+            nextLessonUnlocked = await ensureLessonUnlock(userId, nextLessonId);
+          }
 
-        const savedProgress = await saveLessonProgress(db, userId, lessonId, 100);
+          const savedProgress = await saveLessonProgress(db, userId, lessonId, 100);
 
-        if (savedProgress.justCompleted) {
-          await incrementDailyProgress(userId, { lessons: 1 });
+          if (savedProgress.justCompleted) {
+            await incrementDailyProgress(userId, { lessons: 1 });
+          }
         }
       }
 

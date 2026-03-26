@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getPostgresPool = getPostgresPool;
 exports.initDB = initDB;
 const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
@@ -8,6 +9,7 @@ const pg_1 = require("pg");
 const data_1 = require("./data");
 const curriculum_data_1 = require("./generated/curriculum-data");
 let dbPromise = null;
+let postgresPool = null;
 function resolveDatabasePath() {
     const serverDatabasePath = (0, node_path_1.resolve)(process.cwd(), "server", "database.db");
     if ((0, node_fs_1.existsSync)(serverDatabasePath)) {
@@ -344,16 +346,28 @@ async function seedCourseCurriculum(db) {
     }
 }
 function createPostgresAdapter() {
-    const pool = new pg_1.Pool({
-        connectionString: process.env.DATABASE_URL?.trim(),
-        ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
-    });
+    const pool = getPostgresPool();
+    if (!pool) {
+        throw new Error("DATABASE_URL is not configured.");
+    }
     return {
         dialect: "postgres",
         query(sql, params = []) {
             return pool.query(sql, params);
         }
     };
+}
+function getPostgresPool() {
+    if (!process.env.DATABASE_URL?.trim()) {
+        return null;
+    }
+    if (!postgresPool) {
+        postgresPool = new pg_1.Pool({
+            connectionString: process.env.DATABASE_URL.trim(),
+            ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+        });
+    }
+    return postgresPool;
 }
 async function initDB() {
     if (!dbPromise) {

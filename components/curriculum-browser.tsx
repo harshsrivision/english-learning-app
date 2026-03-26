@@ -154,7 +154,7 @@ export function CurriculumBrowser() {
   }, [lessonCache, selectedLevel, structure]);
 
   const currentLevel = structure?.levels.find((level) => level.level === selectedLevel) ?? null;
-  const currentLessons = lessonCache[selectedLevel] ?? [];
+  const currentLessons = useMemo(() => lessonCache[selectedLevel] ?? [], [lessonCache, selectedLevel]);
 
   useEffect(() => {
     if (!currentLessons.length) {
@@ -233,7 +233,7 @@ export function CurriculumBrowser() {
             </div>
             <p className="mt-3 text-sm leading-7 text-stone">{systems.grammar_system.design_principles[0]}</p>
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.24em] text-stone">Coverage</p>
-            <p className="mt-2 text-sm text-stone">{systems.grammar_system.coverage.slice(0, 4).join(" • ")}</p>
+            <p className="mt-2 text-sm text-stone">{systems.grammar_system.coverage.slice(0, 4).join(" â€¢ ")}</p>
           </article>
 
           <article className="surface-card p-5">
@@ -274,6 +274,7 @@ export function CurriculumBrowser() {
               <button
                 key={level.level}
                 type="button"
+                aria-label={`Open curriculum level ${level.level} ${level.title}`}
                 aria-pressed={isActive}
                 onClick={() => {
                   startTransition(() => {
@@ -345,6 +346,7 @@ export function CurriculumBrowser() {
                       <button
                         key={lesson.lesson_id}
                         type="button"
+                        aria-label={`Select lesson ${lesson.title}`}
                         onClick={() => {
                           startTransition(() => {
                             setSelectedLessonId(lesson.lesson_id);
@@ -404,7 +406,7 @@ export function CurriculumBrowser() {
                   <p className="mt-3 text-sm leading-7 text-stone">{selectedLesson.grammar_topic.why_it_matters}</p>
                   <div className="mt-4 space-y-2 text-sm text-stone">
                     {selectedLesson.grammar_topic.key_points.map((point) => (
-                      <p key={point}>• {point}</p>
+                      <p key={point}>â€¢ {point}</p>
                     ))}
                   </div>
                 </article>
@@ -432,7 +434,7 @@ export function CurriculumBrowser() {
                       </div>
                       <p className="mt-2 text-sm text-stone">{item.meaning}</p>
                       <p className="mt-3 text-sm leading-6 text-ink">{item.example}</p>
-                      <p className="mt-2 text-xs text-stone">{item.category} • {item.usage_context}</p>
+                      <p className="mt-2 text-xs text-stone">{item.category} â€¢ {item.usage_context}</p>
                     </article>
                   ))}
                 </div>
@@ -466,7 +468,7 @@ export function CurriculumBrowser() {
                   <p className="mt-4 text-sm leading-7 text-stone">{selectedLesson.exercises.speaking_practice_task.prompt}</p>
                   <div className="mt-4 space-y-2 text-sm text-stone">
                     {selectedLesson.exercises.speaking_practice_task.steps.map((step) => (
-                      <p key={step}>• {step}</p>
+                      <p key={step}>â€¢ {step}</p>
                     ))}
                   </div>
                   <p className="mt-4 text-sm font-semibold text-ink">Think in English drill</p>
@@ -481,13 +483,13 @@ export function CurriculumBrowser() {
                   <p className="mt-4 text-sm leading-7 text-stone">{selectedLesson.exercises.writing_practice_task.prompt}</p>
                   <div className="mt-4 space-y-2 text-sm text-stone">
                     {selectedLesson.exercises.writing_practice_task.checklist.map((item) => (
-                      <p key={item}>• {item}</p>
+                      <p key={item}>â€¢ {item}</p>
                     ))}
                   </div>
                   <p className="mt-4 text-sm font-semibold text-ink">Micro drills</p>
                   <div className="mt-2 space-y-2 text-sm text-stone">
                     {selectedLesson.exercises.micro_drills.map((drill) => (
-                      <p key={`${drill.type}-${drill.instruction}`}>• {drill.instruction}</p>
+                      <p key={`${drill.type}-${drill.instruction}`}>â€¢ {drill.instruction}</p>
                     ))}
                   </div>
                 </article>
@@ -526,7 +528,7 @@ export function CurriculumBrowser() {
                   <h3 className="font-display text-2xl text-ink">Common Mistakes</h3>
                   <div className="mt-4 space-y-2 text-sm text-stone">
                     {selectedLesson.common_mistakes.map((mistake) => (
-                      <p key={mistake}>• {mistake}</p>
+                      <p key={mistake}>â€¢ {mistake}</p>
                     ))}
                   </div>
                   <p className="mt-4 text-sm font-semibold text-ink">Confidence tip</p>
@@ -541,7 +543,7 @@ export function CurriculumBrowser() {
                   <p className="mt-4 text-sm font-semibold text-ink">Days: {selectedLesson.revision.spaced_repetition_days.join(", ")}</p>
                   <div className="mt-4 space-y-2 text-sm text-stone">
                     {selectedLesson.revision.retrieval_prompts.map((prompt) => (
-                      <p key={prompt}>• {prompt}</p>
+                      <p key={prompt}>â€¢ {prompt}</p>
                     ))}
                   </div>
                   <p className="mt-4 text-sm font-semibold text-ink">Recommended mode: {selectedLesson.revision.recommended_mode}</p>
@@ -553,9 +555,9 @@ export function CurriculumBrowser() {
                     <h3 className="font-display text-2xl text-ink">Unlock Rules</h3>
                   </div>
                   <div className="mt-4 space-y-2 text-sm text-stone">
-                    <p>• {selectedLesson.unlock_logic.chapter_unlock_rule}</p>
-                    <p>• {selectedLesson.unlock_logic.level_unlock_rule}</p>
-                    <p>• Requires completion of: {selectedLesson.unlock_logic.requires_completion_of ?? "No previous lesson"}</p>
+                    <p>â€¢ {selectedLesson.unlock_logic.chapter_unlock_rule}</p>
+                    <p>â€¢ {selectedLesson.unlock_logic.level_unlock_rule}</p>
+                    <p>â€¢ Requires completion of: {selectedLesson.unlock_logic.requires_completion_of ?? "No previous lesson"}</p>
                   </div>
                 </article>
 
@@ -578,4 +580,6 @@ export function CurriculumBrowser() {
     </main>
   );
 }
+
+
 

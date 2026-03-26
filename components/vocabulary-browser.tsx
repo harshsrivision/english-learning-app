@@ -1,17 +1,11 @@
 "use client";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { apiFetchJson } from "@/lib/api";
+import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
 import { readLearnedWordIds, writeLearnedWordIds } from "@/lib/guest-learning-progress";
 import { readLearnerProgress } from "@/lib/local-progress";
-import {
-  genericLearningErrorMessage,
-  getLevelBadgeClasses,
-  getProgressWidthClass,
-  type CefrLevel,
-  type VocabularyCategory,
-  type VocabularyTerm
-} from "@/lib/learning";
+import { getLevelBadgeClasses, getProgressWidthClass, type CefrLevel, type VocabularyCategory, type VocabularyTerm } from "@/lib/learning";
 import { useUserSession } from "@/lib/use-user-session";
 
 const levelFilters: Array<"All" | CefrLevel> = ["All", "A0", "A1", "A2", "B1", "B2", "C1"];
@@ -29,7 +23,7 @@ const categoryFilters: Array<"All" | VocabularyCategory> = [
   "Social"
 ];
 
-function getCategoryBadgeClass(category: VocabularyCategory) {
+function getCategoryBadgeClass() {
   return "rounded-full bg-forest-soft px-3 py-1 text-xs font-semibold text-forest";
 }
 
@@ -60,11 +54,11 @@ export function VocabularyBrowser() {
         const data = await apiFetchJson<VocabularyTerm[]>("vocabulary", { timeoutMs: 20000 });
 
         if (!ignore) {
-          setWords(data);
+          setWords(data.slice(0, 100));
         }
-      } catch {
+      } catch (requestError) {
         if (!ignore) {
-          setError(genericLearningErrorMessage);
+          setError(toApiErrorMessage(requestError, "Vocabulary words abhi load nahi ho pa rahe."));
         }
       } finally {
         if (!ignore) {
@@ -80,6 +74,7 @@ export function VocabularyBrowser() {
     };
   }, []);
 
+  const learnedSet = useMemo(() => new Set(learnedWordIds), [learnedWordIds]);
   const filteredWords = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -96,12 +91,10 @@ export function VocabularyBrowser() {
     });
   }, [activeCategory, activeLevel, searchQuery, words]);
 
-  const learnedSet = useMemo(() => new Set(learnedWordIds), [learnedWordIds]);
   const learnedCount = learnedWordIds.length;
-  const learnedPercent = words.length ? Math.round((learnedCount / words.length) * 100) : 0;
+  const progressPercent = words.length ? Math.round((learnedCount / words.length) * 100) : 0;
 
   async function toggleLearned(wordId: number) {
-    setError(null);
     const isLearned = learnedSet.has(wordId);
     const nextWordIds = isLearned ? learnedWordIds.filter((id) => id !== wordId) : Array.from(new Set([...learnedWordIds, wordId]));
 
@@ -116,7 +109,7 @@ export function VocabularyBrowser() {
           body: JSON.stringify({ userId, wordId })
         });
       } catch {
-        setError(genericLearningErrorMessage);
+        // Local learned state should still stay responsive even if backend sync misses.
       }
     }
   }
@@ -124,14 +117,12 @@ export function VocabularyBrowser() {
   return (
     <main className="section-shell space-y-6">
       <section className="surface-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-forest">Your Progress</p>
-            <p className="mt-1 font-display text-3xl text-ink">
-              <span id="learned-count">{learnedCount}</span> / 100 words learned
-            </p>
-            <div className="mt-3 h-2 w-64 rounded-full bg-ink/10">
-              <div className={`h-2 rounded-full bg-forest transition-all ${getProgressWidthClass(learnedPercent)}`} />
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-forest">Vocabulary progress</p>
+            <p className="mt-2 font-display text-3xl text-ink">{learnedCount} / 100 words learned</p>
+            <div className="mt-4 h-2 w-full max-w-sm rounded-full bg-ink/10">
+              <div className={`h-2 rounded-full bg-forest transition-all ${getProgressWidthClass(progressPercent)}`} />
             </div>
           </div>
           <div className="rounded-[1.5rem] bg-forest px-5 py-3 text-white">
@@ -186,11 +177,11 @@ export function VocabularyBrowser() {
 
         <div className="mt-6">
           <input
-            aria-label="Search vocabulary by English or Hindi"
+            aria-label="Search vocabulary words by English or Hindi"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="h-12 w-full rounded-full border border-ink/10 bg-mist px-5 text-sm text-ink outline-none focus:border-forest placeholder:text-stone/50"
-            placeholder="Search by English or Hindi..."
+            placeholder="Search by English or Hindi"
+            className="h-12 w-full rounded-full border border-ink/10 bg-mist px-5 text-sm text-ink outline-none placeholder:text-stone/60 focus:border-forest"
           />
         </div>
       </section>
@@ -202,8 +193,8 @@ export function VocabularyBrowser() {
         <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredWords.length ? (
             filteredWords.map((word) => {
-              const isLearned = learnedSet.has(word.id);
               const isExpanded = expandedWordId === word.id;
+              const isLearned = learnedSet.has(word.id);
 
               return (
                 <article
@@ -213,45 +204,44 @@ export function VocabularyBrowser() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex flex-wrap gap-2">
                       <span className={getLevelBadgeClasses(word.cefrLevel)}>{word.cefrLevel}</span>
-                      <span className={getCategoryBadgeClass(word.category)}>{word.category}</span>
-                      {isLearned ? <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-800">Learned</span> : null}
+                      <span className={getCategoryBadgeClass()}>{word.category}</span>
                     </div>
                     <button
                       type="button"
-                      aria-label={`Expand word ${word.english}`}
+                      aria-label={`${isExpanded ? "Collapse" : "Expand"} vocabulary card for ${word.english}`}
                       onClick={() => setExpandedWordId(isExpanded ? null : word.id)}
-                      className="text-lg text-stone hover:text-ink"
+                      className="inline-flex items-center justify-center rounded-full border border-ink/10 bg-white p-2 text-stone transition hover:border-forest/30 hover:text-forest"
                     >
-                      {isExpanded ? "Hide" : "More"}
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
                   </div>
 
                   <button
                     type="button"
-                    aria-label={`Open details for word ${word.english}`}
+                    aria-label={`Open details for vocabulary word ${word.english}`}
                     onClick={() => setExpandedWordId(isExpanded ? null : word.id)}
                     className="w-full text-left"
                   >
                     <p className="mt-4 font-display text-3xl text-ink">{word.english}</p>
-                    <p className="mt-1 text-base font-semibold text-forest">{word.hindi}</p>
+                    <p className="mt-2 text-base font-semibold text-forest">{word.hindi}</p>
                     <p className="mt-1 text-xs italic text-stone">{word.hindiPronunciation}</p>
                   </button>
 
                   {isExpanded ? (
-                    <div className="mt-4 space-y-4">
+                    <div className="mt-5 space-y-4">
                       <div className="rounded-[1.5rem] bg-gold/10 p-4">
-                        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gold">Memory Tip</p>
-                        <p className="text-sm leading-6 text-stone">{word.memoryTip}</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">MEMORY TIP</p>
+                        <p className="mt-2 text-sm leading-7 text-stone">{word.memoryTip}</p>
                       </div>
 
                       <div className="rounded-r-2xl border-l-4 border-forest bg-mist px-5 py-4">
-                        <p className="text-sm font-semibold text-ink">&quot;{word.usage}&quot;</p>
+                        <p className="text-sm font-semibold text-ink">{word.usage}</p>
                         <p className="mt-1 text-xs text-stone">{word.hindiUsage}</p>
                       </div>
 
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-stone">Kab bolte hain?</p>
-                        <div className="flex flex-wrap gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone">Kab bolte hain?</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
                           {word.useCases.map((useCase) => (
                             <span key={useCase} className="rounded-full border border-ink/10 bg-mist px-3 py-1 text-xs text-stone">
                               {useCase}
@@ -261,8 +251,8 @@ export function VocabularyBrowser() {
                       </div>
 
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-stone">Similar words</p>
-                        <div className="flex flex-wrap gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone">Similar words</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
                           {word.synonyms.map((synonym) => (
                             <span key={synonym} className="rounded-full bg-sky px-3 py-1 text-xs font-semibold text-blue-700">
                               {synonym}
@@ -276,9 +266,9 @@ export function VocabularyBrowser() {
                   <div className="mt-5 border-t border-ink/10 pt-4">
                     <button
                       type="button"
-                      aria-label={`${isLearned ? "Unmark" : "Mark"} word ${word.english} as learned`}
+                      aria-label={`${isLearned ? "Unmark" : "Mark"} ${word.english} as learned`}
                       onClick={() => void toggleLearned(word.id)}
-                      className={`w-full rounded-full px-6 py-3 text-sm font-bold ${isLearned ? "bg-green-100 text-green-800" : "bg-forest text-white transition hover:bg-forest-dark"}`}
+                      className={`w-full rounded-full border px-5 py-3 text-sm font-bold ${isLearned ? "border-green-400 bg-green-100 text-green-800" : "border-ink/10 bg-white text-ink hover:border-forest/30"}`}
                     >
                       {isLearned ? "Learned" : "I know this"}
                     </button>
@@ -287,9 +277,9 @@ export function VocabularyBrowser() {
               );
             })
           ) : (
-            <div className="col-span-full py-16 text-center">
+            <div className="col-span-full rounded-[2rem] border border-dashed border-ink/15 bg-white/80 px-6 py-16 text-center">
               <p className="font-display text-2xl text-ink">Koi word nahi mila</p>
-              <p className="mt-2 text-sm text-stone">Filter change karke dobara dhundho</p>
+              <p className="mt-2 text-sm text-stone">Filter change karke dekho</p>
             </div>
           )}
         </section>

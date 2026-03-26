@@ -21,6 +21,7 @@ type CountRow = {
 };
 
 let dbPromise: Promise<AppDatabase> | null = null;
+let postgresPool: Pool | null = null;
 
 function resolveDatabasePath() {
   const serverDatabasePath = resolve(process.cwd(), "server", "database.db");
@@ -407,10 +408,11 @@ async function seedCourseCurriculum(db: AppDatabase) {
 }
 
 function createPostgresAdapter() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL?.trim(),
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
-  });
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
 
   return {
     dialect: "postgres" as const,
@@ -418,6 +420,21 @@ function createPostgresAdapter() {
       return pool.query<T>(sql, params);
     }
   } satisfies AppDatabase;
+}
+
+export function getPostgresPool() {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return null;
+  }
+
+  if (!postgresPool) {
+    postgresPool = new Pool({
+      connectionString: process.env.DATABASE_URL.trim(),
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+    });
+  }
+
+  return postgresPool;
 }
 
 export async function initDB() {

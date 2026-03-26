@@ -1,10 +1,16 @@
-"use client";
-
+﻿import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { GrammarTopicCard } from "@/components/grammar-topic-card";
 import { SectionHeading } from "@/components/section-heading";
 import { grammarTopicCards } from "@/lib/app-data";
+import { buildCurriculumLevelRoute } from "@/lib/curriculum-lessons";
+import { mapRoadmapLevelToCurriculumLevel } from "@/lib/curriculum";
+
+export const metadata: Metadata = {
+  title: "English Grammar - Hindi mein Samjho | Bolo English",
+  description: "12 essential grammar topics Hindi explanation ke saath. Articles, tenses, modals - simple aur clear."
+};
 
 export default function GrammarPage() {
   return (
@@ -26,7 +32,7 @@ export default function GrammarPage() {
             duration={topic.duration}
             hook={topic.hook}
             description={topic.description}
-            href={`/lessons/${topic.lessonId}` as Route}
+            href={buildCurriculumLevelRoute(mapRoadmapLevelToCurriculumLevel(topic.level)) as Route}
             delay={index * 0.05}
           />
         ))}

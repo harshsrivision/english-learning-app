@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LockKeyhole } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { RoadmapLevel } from "@/lib/app-data";
-import { buildCurriculumLevelHref, mapRoadmapLevelToCurriculumLevel } from "@/lib/curriculum";
+import { buildCurriculumLevelRoute } from "@/lib/curriculum-lessons";
+import { mapRoadmapLevelToCurriculumLevel } from "@/lib/curriculum";
 
 type RoadmapLevelCardProps = {
   level: RoadmapLevel;
@@ -26,7 +27,7 @@ const badgeClassByLevel = {
 } as const;
 
 function CardBody({ level, unlocked, active }: { level: RoadmapLevel; unlocked: boolean; active: boolean }) {
-  const curriculumHref = buildCurriculumLevelHref(mapRoadmapLevelToCurriculumLevel(level.level)) as Route;
+  const curriculumHref = buildCurriculumLevelRoute(mapRoadmapLevelToCurriculumLevel(level.level)) as Route;
 
   return (
     <div className="space-y-4">
@@ -102,4 +103,3 @@ export function RoadmapLevelCard({ level, unlocked, active, mobile = false, expa
     </motion.article>
   );
 }
-

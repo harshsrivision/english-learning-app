@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { BookOpen, Map, Mic2, Trophy } from "lucide-react";
@@ -54,6 +54,11 @@ const quickLinks = [
   { href: "/achievements", label: "Achievements", icon: Trophy }
 ] as const;
 
+function resolveFooterHref(href: string, loginHref: Route) {
+  return href === "/login" ? loginHref : (href as Route);
+}
+
+
 export function SiteFooter() {
   const pathname = usePathname();
   const loginHref = buildLoginHref(pathname === "/" ? defaultAuthenticatedPath : pathname);
@@ -75,7 +80,7 @@ export function SiteFooter() {
               </div>
               <div className="space-y-3 text-sm text-stone">
                 {column.links.map((link) => (
-                  <Link key={link.label} href={link.href === "/login" ? loginHref : (link.href as Route)} aria-label={`Open ${link.label}`} className="block transition hover:text-forest">
+                  <Link key={link.label} href={resolveFooterHref(link.href, loginHref)} aria-label={`Open ${link.label}`} className="block transition hover:text-forest">
                     {link.label}
                   </Link>
                 ))}
@@ -92,7 +97,7 @@ export function SiteFooter() {
               return (
                 <Link
                   key={link.label}
-                  href={link.href === "/login" ? loginHref : (link.href as Route)}
+                  href={link.href as Route}
                   aria-label={`Open ${link.label}`}
                   className="inline-flex items-center gap-2 rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink transition hover:border-forest hover:text-forest"
                 >
@@ -107,6 +112,7 @@ export function SiteFooter() {
     </footer>
   );
 }
+
 
 
 

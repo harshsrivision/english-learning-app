@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const express_1 = __importDefault(require("express"));
+const promises_1 = require("node:fs/promises");
 const node_path_1 = require("node:path");
 const ai_1 = require("./ai");
 const auth_1 = require("./auth");
@@ -15,7 +16,8 @@ const database_1 = require("./database");
 const lesson_progression_1 = require("./lesson-progression");
 const pronunciation_1 = require("./pronunciation");
 const routes_1 = require("./routes");
-dotenv_1.default.config({ path: (0, node_path_1.resolve)(process.cwd(), ".env") });
+const curriculum_data_1 = require("./generated/curriculum-data");
+dotenv_1.default.config({ path: [(0, node_path_1.resolve)(process.cwd(), ".env.local"), (0, node_path_1.resolve)(process.cwd(), ".env")] });
 if (!process.env.PORT && process.env.API_PORT) {
     process.env.PORT = process.env.API_PORT;
 }
@@ -134,6 +136,16 @@ function getLessonListItem(lesson) {
         hindiSummary: lesson.hindiSummary,
         unlockRequirement: lesson.unlockRequirement
     };
+}
+function normalizeCurriculumChapterId(chapterId) {
+    if (/^L\d+-C\d+$/i.test(chapterId)) {
+        return chapterId.toUpperCase();
+    }
+    const match = chapterId.match(/^(\d+)-(\d+)$/);
+    if (!match) {
+        return null;
+    }
+    return `L${match[1]}-C${match[2]}`;
 }
 function parseStoredChapterContent(content) {
     if (content && typeof content === "object") {
@@ -383,6 +395,33 @@ async function bootstrap() {
        WHERE lesson_id = $1
        ORDER BY sort_order ASC`, [lessonId]);
     }
+    app.get("/seed-curriculum", async (req, res) => {
+        const expectedKey = process.env.SEED_KEY;
+        const providedKey = typeof req.query.key === "string" ? req.query.key : "";
+        if (!expectedKey || providedKey !== expectedKey) {
+            return res.status(403).json({ error: "Forbidden." });
+        }
+        if (db.dialect !== "postgres") {
+            return res.status(503).json({ error: "Seeding requires PostgreSQL." });
+        }
+        const pool = (0, database_1.getPostgresPool)();
+        if (!pool) {
+            return res.status(503).json({ error: "Database is not configured." });
+        }
+        try {
+            const [schemaSql, seedSql] = await Promise.all([
+                (0, promises_1.readFile)((0, node_path_1.resolve)(process.cwd(), "db", "course-curriculum-schema.sql"), "utf8"),
+                (0, promises_1.readFile)((0, node_path_1.resolve)(process.cwd(), "db", "generated", "course-curriculum-seed.sql"), "utf8")
+            ]);
+            await pool.query(schemaSql);
+            await pool.query(seedSql);
+            return res.json({ success: true, message: "Database seeded" });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : "Database seeding failed.";
+            return res.status(500).json({ error: message });
+        }
+    });
     app.post("/signup", async (req, res) => {
         const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
         const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
@@ -530,10 +569,15 @@ async function bootstrap() {
             return;
         }
         const lesson = getLessonById(lessonId);
-        if (!lesson) {
+        const curriculumLevel = (0, curriculum_data_1.getCurriculumLevel)(lessonId);
+        const normalizedCurriculumChapterId = normalizeCurriculumChapterId(chapterId);
+        const isCurriculumChapter = Boolean(curriculumLevel && normalizedCurriculumChapterId);
+        if (!lesson && !curriculumLevel) {
             return res.status(404).json({ error: "Lesson not found." });
         }
-        const chapterExists = lesson.chapters.some((chapter) => chapter.id === chapterId);
+        const chapterExists = isCurriculumChapter
+            ? curriculumLevel?.chapters.some((chapter) => chapter.chapter_id === normalizedCurriculumChapterId)
+            : lesson?.chapters.some((chapter) => chapter.id === chapterId);
         if (!chapterExists) {
             return res.status(404).json({ error: "Chapter not found." });
         }
@@ -556,17 +600,20 @@ async function bootstrap() {
             const completedRows = await queryAll(`SELECT id, lesson_id, chapter_id, score, completed_at
          FROM chapter_progress
          WHERE user_id = $1 AND lesson_id = $2`, [userId, lessonId]);
-            const isLessonCompleted = completedRows.length >= lesson.chapters.length;
+            const totalChapterCount = isCurriculumChapter ? curriculumLevel?.chapters.length ?? 0 : lesson?.chapters.length ?? 0;
+            const isLessonCompleted = totalChapterCount > 0 && completedRows.length >= totalChapterCount;
             let nextLessonUnlocked = false;
-            await ensureLessonUnlock(userId, lessonId);
-            if (isLessonCompleted) {
-                const nextLessonId = getNextLessonId(lessonId);
-                if (nextLessonId !== null) {
-                    nextLessonUnlocked = await ensureLessonUnlock(userId, nextLessonId);
-                }
-                const savedProgress = await (0, lesson_progression_1.saveLessonProgress)(db, userId, lessonId, 100);
-                if (savedProgress.justCompleted) {
-                    await incrementDailyProgress(userId, { lessons: 1 });
+            if (!isCurriculumChapter && lesson) {
+                await ensureLessonUnlock(userId, lessonId);
+                if (isLessonCompleted) {
+                    const nextLessonId = getNextLessonId(lessonId);
+                    if (nextLessonId !== null) {
+                        nextLessonUnlocked = await ensureLessonUnlock(userId, nextLessonId);
+                    }
+                    const savedProgress = await (0, lesson_progression_1.saveLessonProgress)(db, userId, lessonId, 100);
+                    if (savedProgress.justCompleted) {
+                        await incrementDailyProgress(userId, { lessons: 1 });
+                    }
                 }
             }
             return res.json({ success: true, nextLessonUnlocked, xpAwarded: wasAlreadyCompleted ? 0 : 50 });
