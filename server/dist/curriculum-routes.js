@@ -57,6 +57,17 @@ function toInteger(value) {
 function toErrorMessage(error, fallback) {
     return error instanceof Error ? error.message : fallback;
 }
+function parseStructuredValue(value) {
+    if (typeof value !== "string") {
+        return value;
+    }
+    try {
+        return JSON.parse(value);
+    }
+    catch {
+        return value;
+    }
+}
 async function getCurriculumLevelsFromDb() {
     const db = await (0, database_1.initDB)();
     const [levelsResult, chaptersResult, lessonTitlesResult] = await Promise.all([
@@ -107,6 +118,59 @@ async function getCurriculumLevelsFromDb() {
         };
     });
 }
+async function getCurriculumLevelFromDb(levelId) {
+    const levels = await getCurriculumLevelsFromDb();
+    return levels.find((level) => level.level === levelId) ?? null;
+}
+async function getCurriculumLessonsFromDb(filters = {}) {
+    const db = await (0, database_1.initDB)();
+    const params = [];
+    const whereClauses = [];
+    if (typeof filters.levelId === "number") {
+        params.push(filters.levelId);
+        whereClauses.push(`cl.level_id = $${params.length}`);
+    }
+    if (filters.chapterId) {
+        params.push(filters.chapterId);
+        whereClauses.push(`cl.chapter_id = $${params.length}`);
+    }
+    if (filters.lessonId) {
+        params.push(filters.lessonId);
+        whereClauses.push(`cl.lesson_id = $${params.length}`);
+    }
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const lessonRows = await db.query(`SELECT cl.level_id, cl.level_title, cl.cefr_band, cl.chapter_id, cl.chapter_title, cc.summary AS chapter_summary,
+            cl.lesson_id, cl.order_index, cl.global_order_index, cl.title, cl.learning_objective,
+            cl.grammar_topic, cl.content, cl.vocabulary_list, cl.exercises, cl.quiz, cl.answers,
+            cl.common_mistakes, cl.confidence_tip, cl.revision, cl.unlock_logic
+     FROM course_lessons cl
+     INNER JOIN course_chapters cc ON cc.chapter_id = cl.chapter_id
+     ${whereSql}
+     ORDER BY cl.global_order_index ASC`, params);
+    return lessonRows.rows.map((lesson) => ({
+        level: toInteger(lesson.level_id),
+        level_title: lesson.level_title,
+        cefr_band: lesson.cefr_band,
+        chapter: lesson.chapter_title,
+        chapter_id: lesson.chapter_id,
+        lesson_id: lesson.lesson_id,
+        order_index: toInteger(lesson.order_index),
+        global_order_index: toInteger(lesson.global_order_index),
+        title: lesson.title,
+        learning_objective: lesson.learning_objective,
+        grammar_topic: parseStructuredValue(lesson.grammar_topic),
+        vocabulary_list: parseStructuredValue(lesson.vocabulary_list),
+        content: parseStructuredValue(lesson.content),
+        exercises: parseStructuredValue(lesson.exercises),
+        quiz: parseStructuredValue(lesson.quiz),
+        answers: parseStructuredValue(lesson.answers),
+        common_mistakes: parseStructuredValue(lesson.common_mistakes),
+        confidence_tip: lesson.confidence_tip,
+        revision: parseStructuredValue(lesson.revision),
+        unlock_logic: parseStructuredValue(lesson.unlock_logic),
+        chapter_summary: lesson.chapter_summary
+    }));
+}
 exports.curriculumRouter.get("/manifest", (_req, res) => {
     res.json(curriculum_data_1.curriculumManifest);
 });
@@ -131,8 +195,7 @@ exports.curriculumRouter.get("/levels/:levelId", async (req, res) => {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
     try {
-        const levels = await getCurriculumLevelsFromDb();
-        const level = levels.find((item) => item.level === levelId);
+        const level = await getCurriculumLevelFromDb(levelId);
         if (!level) {
             return res.status(404).json({ error: "Level not found." });
         }
@@ -142,58 +205,73 @@ exports.curriculumRouter.get("/levels/:levelId", async (req, res) => {
         return res.status(500).json({ error: toErrorMessage(error, "Curriculum level could not be loaded.") });
     }
 });
-exports.curriculumRouter.get("/levels/:levelId/lessons", (req, res) => {
+exports.curriculumRouter.get("/levels/:levelId/lessons", async (req, res) => {
     const levelId = parseLevelId(req.params.levelId);
     if (!levelId) {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
-    const level = (0, curriculum_data_1.getCurriculumLevel)(levelId);
-    if (!level) {
-        return res.status(404).json({ error: "Level not found." });
+    try {
+        const level = await getCurriculumLevelFromDb(levelId);
+        if (!level) {
+            return res.status(404).json({ error: "Level not found." });
+        }
+        const lessons = await getCurriculumLessonsFromDb({ levelId });
+        return res.json(lessons);
     }
-    const lessons = curriculum_data_1.completeCurriculumCourse.lessons.filter((lesson) => lesson.level === levelId);
-    return res.json(lessons);
+    catch (error) {
+        return res.status(500).json({ error: toErrorMessage(error, "Curriculum lessons could not be loaded.") });
+    }
 });
-exports.curriculumRouter.get("/chapters/:levelId", (req, res) => {
+exports.curriculumRouter.get("/chapters/:levelId", async (req, res) => {
     const levelId = parseLevelId(req.params.levelId);
     if (!levelId) {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
-    const level = (0, curriculum_data_1.getCurriculumLevel)(levelId);
-    if (!level) {
-        return res.status(404).json({ error: "Level not found." });
+    try {
+        const level = await getCurriculumLevelFromDb(levelId);
+        if (!level) {
+            return res.status(404).json({ error: "Level not found." });
+        }
+        return res.json(level.chapters.map((chapter) => ({
+            level: level.level,
+            level_title: level.title,
+            cefr_band: level.cefr_band,
+            chapter_id: chapter.chapter_id,
+            route_id: buildChapterRouteId(chapter.chapter_id),
+            order_index: chapter.order_index,
+            title: chapter.title,
+            summary: chapter.summary,
+            kind: deriveChapterType(chapter.title, chapter.summary),
+            type: deriveChapterType(chapter.title, chapter.summary),
+            lesson_count: chapter.lesson_titles.length,
+            lesson_titles: chapter.lesson_titles
+        })));
     }
-    return res.json(level.chapters.map((chapter) => ({
-        level: level.level,
-        level_title: level.title,
-        cefr_band: level.cefr_band,
-        chapter_id: chapter.chapter_id,
-        route_id: buildChapterRouteId(chapter.chapter_id),
-        order_index: chapter.order_index,
-        title: chapter.title,
-        summary: chapter.summary,
-        kind: deriveChapterType(chapter.title, chapter.summary),
-        type: deriveChapterType(chapter.title, chapter.summary),
-        lesson_count: chapter.lesson_titles.length,
-        lesson_titles: chapter.lesson_titles
-    })));
+    catch (error) {
+        return res.status(500).json({ error: toErrorMessage(error, "Curriculum chapters could not be loaded.") });
+    }
 });
 exports.curriculumRouter.get("/levels/1/phase-2", (_req, res) => {
     res.json(curriculum_data_1.level1CurriculumLessons);
 });
-exports.curriculumRouter.get("/lessons/:lessonId", (req, res) => {
+exports.curriculumRouter.get("/lessons/:lessonId", async (req, res) => {
     const requestedId = req.params.lessonId?.trim();
     const chapterId = parseChapterId(requestedId);
-    if (chapterId) {
-        const lessons = curriculum_data_1.completeCurriculumCourse.lessons.filter((lesson) => lesson.chapter_id === chapterId);
-        if (!lessons.length) {
-            return res.status(404).json({ error: "Chapter not found." });
+    try {
+        if (chapterId) {
+            const lessons = await getCurriculumLessonsFromDb({ chapterId });
+            if (!lessons.length) {
+                return res.status(404).json({ error: "Chapter not found." });
+            }
+            return res.json(lessons);
         }
-        return res.json(lessons);
+        const lesson = (await getCurriculumLessonsFromDb({ lessonId: requestedId ?? "" }))[0] ?? null;
+        if (!lesson) {
+            return res.status(404).json({ error: "Lesson not found." });
+        }
+        return res.json(lesson);
     }
-    const lesson = (0, curriculum_data_1.getCurriculumLesson)(requestedId ?? "");
-    if (!lesson) {
-        return res.status(404).json({ error: "Lesson not found." });
+    catch (error) {
+        return res.status(500).json({ error: toErrorMessage(error, "Curriculum lesson could not be loaded.") });
     }
-    return res.json(lesson);
 });
