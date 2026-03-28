@@ -1,7 +1,33 @@
 import { Router } from "express";
+import { initDB } from "./database";
 import { completeCurriculumCourse, curriculumManifest, curriculumStructure, getCurriculumLesson, getCurriculumLevel, level1CurriculumLessons } from "./generated/curriculum-data";
 
 export const curriculumRouter = Router();
+
+type CurriculumLevelRow = {
+  level_id: number | string;
+  slug: string;
+  title: string;
+  cefr_band: string;
+  outcome: string;
+  chapter_count: number | string;
+  lesson_count: number | string;
+};
+
+type CurriculumChapterRow = {
+  chapter_id: string;
+  level_id: number | string;
+  order_index: number | string;
+  title: string;
+  summary: string;
+};
+
+type CurriculumLessonTitleRow = {
+  lesson_id: string;
+  chapter_id: string;
+  order_index: number | string;
+  title: string;
+};
 
 function parseLevelId(value: string | undefined) {
   const parsed = Number(value);
@@ -67,6 +93,97 @@ function deriveChapterType(title: string, summary: string) {
   return "Revision";
 }
 
+function toInteger(value: number | string) {
+  return typeof value === "number" ? value : Number(value);
+}
+
+function toErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function getCurriculumLevelsFromDb() {
+  const db = await initDB();
+  const [levelsResult, chaptersResult, lessonTitlesResult] = await Promise.all([
+    db.query<CurriculumLevelRow>(
+      `SELECT level_id, slug, title, cefr_band, outcome, chapter_count, lesson_count
+       FROM course_levels
+       ORDER BY level_id ASC`
+    ),
+    db.query<CurriculumChapterRow>(
+      `SELECT chapter_id, level_id, order_index, title, summary
+       FROM course_chapters
+       ORDER BY level_id ASC, order_index ASC`
+    ),
+    db.query<CurriculumLessonTitleRow>(
+      `SELECT lesson_id, chapter_id, order_index, title
+       FROM course_lessons
+       ORDER BY chapter_id ASC, order_index ASC`
+    )
+  ]);
+
+  const lessonTitlesByChapter = new Map<
+    string,
+    Array<{
+      lesson_id: string;
+      order_index: number;
+      title: string;
+    }>
+  >();
+
+  for (const lessonTitle of lessonTitlesResult.rows) {
+    const chapterLessonTitles = lessonTitlesByChapter.get(lessonTitle.chapter_id) ?? [];
+    chapterLessonTitles.push({
+      lesson_id: lessonTitle.lesson_id,
+      order_index: toInteger(lessonTitle.order_index),
+      title: lessonTitle.title
+    });
+    lessonTitlesByChapter.set(lessonTitle.chapter_id, chapterLessonTitles);
+  }
+
+  const chaptersByLevel = new Map<
+    number,
+    Array<{
+      chapter_id: string;
+      order_index: number;
+      title: string;
+      summary: string;
+      lesson_titles: Array<{
+        lesson_id: string;
+        order_index: number;
+        title: string;
+      }>;
+    }>
+  >();
+
+  for (const chapter of chaptersResult.rows) {
+    const levelId = toInteger(chapter.level_id);
+    const levelChapters = chaptersByLevel.get(levelId) ?? [];
+    levelChapters.push({
+      chapter_id: chapter.chapter_id,
+      order_index: toInteger(chapter.order_index),
+      title: chapter.title,
+      summary: chapter.summary,
+      lesson_titles: lessonTitlesByChapter.get(chapter.chapter_id) ?? []
+    });
+    chaptersByLevel.set(levelId, levelChapters);
+  }
+
+  return levelsResult.rows.map((level) => {
+    const levelId = toInteger(level.level_id);
+
+    return {
+      level: levelId,
+      slug: level.slug,
+      title: level.title,
+      cefr_band: level.cefr_band,
+      outcome: level.outcome,
+      chapter_count: toInteger(level.chapter_count),
+      lesson_count: toInteger(level.lesson_count),
+      chapters: chaptersByLevel.get(levelId) ?? []
+    };
+  });
+}
+
 curriculumRouter.get("/manifest", (_req, res) => {
   res.json(curriculumManifest);
 });
@@ -79,11 +196,37 @@ curriculumRouter.get("/systems", (_req, res) => {
   res.json(completeCurriculumCourse.systems);
 });
 
-curriculumRouter.get("/levels", (_req, res) => {
-  res.json(curriculumStructure.levels);
+curriculumRouter.get("/levels", async (_req, res) => {
+  try {
+    const levels = await getCurriculumLevelsFromDb();
+    return res.json(levels);
+  } catch (error) {
+    return res.status(500).json({ error: toErrorMessage(error, "Curriculum levels could not be loaded.") });
+  }
 });
 
-curriculumRouter.get("/levels/:levelId", (req, res) => {
+curriculumRouter.get("/levels/:levelId", async (req, res) => {
+  const levelId = parseLevelId(req.params.levelId);
+
+  if (!levelId) {
+    return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
+  }
+
+  try {
+    const levels = await getCurriculumLevelsFromDb();
+    const level = levels.find((item) => item.level === levelId);
+
+    if (!level) {
+      return res.status(404).json({ error: "Level not found." });
+    }
+
+    return res.json(level);
+  } catch (error) {
+    return res.status(500).json({ error: toErrorMessage(error, "Curriculum level could not be loaded.") });
+  }
+});
+
+curriculumRouter.get("/levels/:levelId/lessons", (req, res) => {
   const levelId = parseLevelId(req.params.levelId);
 
   if (!levelId) {
@@ -94,16 +237,6 @@ curriculumRouter.get("/levels/:levelId", (req, res) => {
 
   if (!level) {
     return res.status(404).json({ error: "Level not found." });
-  }
-
-  return res.json(level);
-});
-
-curriculumRouter.get("/levels/:levelId/lessons", (req, res) => {
-  const levelId = parseLevelId(req.params.levelId);
-
-  if (!levelId) {
-    return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
   }
 
   const lessons = completeCurriculumCourse.lessons.filter((lesson) => lesson.level === levelId);
