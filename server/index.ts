@@ -28,7 +28,12 @@ function trimTrailingSlash(value: string) {
 
 const defaultAllowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:4000",
   "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+  "https://english-learning-app-beta-ten.vercel.app",
+  "https://english-learning-app-ajgl.vercel.app",
   "https://*.vercel.app",
   "https://*.up.railway.app",
   "https://*.onrender.com"
@@ -97,13 +102,17 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
+app.use((req, _res, next) => {
+  console.info(`${req.method} ${req.path}`);
+  next();
+});
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "bolo-english-api" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "bolo-english-api" });
+  res.json({ status: "ok", service: "bolo-english-api", timestamp: new Date().toISOString() });
 });
 
 type DailyProgressCounts = {
@@ -936,8 +945,21 @@ async function bootstrap() {
     }
   });
 
-  app.get("/vocabulary", (_req, res) => {
-    return res.json(vocabularyTerms);
+  app.get("/vocabulary", async (_req, res) => {
+    try {
+      const vocabularyRows = await queryAll<{ id: number | string }>("SELECT id FROM vocabulary ORDER BY id ASC");
+
+      if (!vocabularyRows.length) {
+        return res.json(vocabularyTerms);
+      }
+
+      const availableIds = new Set(vocabularyRows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0));
+      const matchingTerms = vocabularyTerms.filter((term) => availableIds.has(term.id));
+
+      return res.json(matchingTerms.length ? matchingTerms : vocabularyTerms);
+    } catch {
+      return res.json(vocabularyTerms);
+    }
   });
 
   app.post("/vocabulary-progress", async (req, res) => {
@@ -1086,7 +1108,7 @@ async function bootstrap() {
   app.use(errorHandler);
 
   const server = app.listen(PORT, () => {
-    console.log(`Bolo English API listening on port ${PORT}`);
+    console.info(`Bolo English API listening on port ${PORT}`);
   });
 
   server.on("error", (error: NodeJS.ErrnoException) => {
@@ -1105,4 +1127,5 @@ void bootstrap().catch((error) => {
   console.error(message);
   process.exit(1);
 });
+
 

@@ -183,10 +183,10 @@ exports.curriculumRouter.get("/systems", (_req, res) => {
 exports.curriculumRouter.get("/levels", async (_req, res) => {
     try {
         const levels = await getCurriculumLevelsFromDb();
-        return res.json(levels);
+        return res.json(levels.length ? levels : curriculum_data_1.curriculumStructure.levels);
     }
-    catch (error) {
-        return res.status(500).json({ error: toErrorMessage(error, "Curriculum levels could not be loaded.") });
+    catch {
+        return res.json(curriculum_data_1.curriculumStructure.levels);
     }
 });
 exports.curriculumRouter.get("/levels/:levelId", async (req, res) => {
@@ -194,15 +194,19 @@ exports.curriculumRouter.get("/levels/:levelId", async (req, res) => {
     if (!levelId) {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
+    const fallbackLevel = curriculum_data_1.curriculumStructure.levels.find((level) => level.level === levelId) ?? null;
     try {
-        const level = await getCurriculumLevelFromDb(levelId);
+        const level = (await getCurriculumLevelFromDb(levelId)) ?? fallbackLevel;
         if (!level) {
             return res.status(404).json({ error: "Level not found." });
         }
         return res.json(level);
     }
-    catch (error) {
-        return res.status(500).json({ error: toErrorMessage(error, "Curriculum level could not be loaded.") });
+    catch {
+        if (!fallbackLevel) {
+            return res.status(404).json({ error: "Level not found." });
+        }
+        return res.json(fallbackLevel);
     }
 });
 exports.curriculumRouter.get("/levels/:levelId/lessons", async (req, res) => {
@@ -210,16 +214,18 @@ exports.curriculumRouter.get("/levels/:levelId/lessons", async (req, res) => {
     if (!levelId) {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
+    const fallbackLevel = curriculum_data_1.curriculumStructure.levels.find((level) => level.level === levelId) ?? null;
+    const fallbackLessons = curriculum_data_1.completeCurriculumCourse.lessons.filter((lesson) => lesson.level === levelId);
     try {
-        const level = await getCurriculumLevelFromDb(levelId);
+        const level = (await getCurriculumLevelFromDb(levelId)) ?? fallbackLevel;
         if (!level) {
             return res.status(404).json({ error: "Level not found." });
         }
         const lessons = await getCurriculumLessonsFromDb({ levelId });
-        return res.json(lessons);
+        return res.json(lessons.length ? lessons : fallbackLessons);
     }
-    catch (error) {
-        return res.status(500).json({ error: toErrorMessage(error, "Curriculum lessons could not be loaded.") });
+    catch {
+        return res.json(fallbackLessons);
     }
 });
 exports.curriculumRouter.get("/chapters/:levelId", async (req, res) => {
@@ -227,8 +233,9 @@ exports.curriculumRouter.get("/chapters/:levelId", async (req, res) => {
     if (!levelId) {
         return res.status(400).json({ error: "Level ID must be 1, 2, 3, or 4." });
     }
+    const fallbackLevel = curriculum_data_1.curriculumStructure.levels.find((level) => level.level === levelId) ?? null;
     try {
-        const level = await getCurriculumLevelFromDb(levelId);
+        const level = (await getCurriculumLevelFromDb(levelId)) ?? fallbackLevel;
         if (!level) {
             return res.status(404).json({ error: "Level not found." });
         }
@@ -247,8 +254,24 @@ exports.curriculumRouter.get("/chapters/:levelId", async (req, res) => {
             lesson_titles: chapter.lesson_titles
         })));
     }
-    catch (error) {
-        return res.status(500).json({ error: toErrorMessage(error, "Curriculum chapters could not be loaded.") });
+    catch {
+        if (!fallbackLevel) {
+            return res.status(404).json({ error: "Level not found." });
+        }
+        return res.json(fallbackLevel.chapters.map((chapter) => ({
+            level: fallbackLevel.level,
+            level_title: fallbackLevel.title,
+            cefr_band: fallbackLevel.cefr_band,
+            chapter_id: chapter.chapter_id,
+            route_id: buildChapterRouteId(chapter.chapter_id),
+            order_index: chapter.order_index,
+            title: chapter.title,
+            summary: chapter.summary,
+            kind: deriveChapterType(chapter.title, chapter.summary),
+            type: deriveChapterType(chapter.title, chapter.summary),
+            lesson_count: chapter.lesson_titles.length,
+            lesson_titles: chapter.lesson_titles
+        })));
     }
 });
 exports.curriculumRouter.get("/levels/1/phase-2", (_req, res) => {
@@ -260,18 +283,33 @@ exports.curriculumRouter.get("/lessons/:lessonId", async (req, res) => {
     try {
         if (chapterId) {
             const lessons = await getCurriculumLessonsFromDb({ chapterId });
-            if (!lessons.length) {
+            const fallbackLessons = curriculum_data_1.completeCurriculumCourse.lessons.filter((lesson) => lesson.chapter_id === chapterId);
+            const nextLessons = lessons.length ? lessons : fallbackLessons;
+            if (!nextLessons.length) {
                 return res.status(404).json({ error: "Chapter not found." });
             }
-            return res.json(lessons);
+            return res.json(nextLessons);
         }
         const lesson = (await getCurriculumLessonsFromDb({ lessonId: requestedId ?? "" }))[0] ?? null;
-        if (!lesson) {
+        const fallbackLesson = curriculum_data_1.completeCurriculumCourse.lessons.find((item) => item.lesson_id === requestedId) ?? null;
+        const nextLesson = lesson ?? fallbackLesson;
+        if (!nextLesson) {
             return res.status(404).json({ error: "Lesson not found." });
         }
-        return res.json(lesson);
+        return res.json(nextLesson);
     }
-    catch (error) {
-        return res.status(500).json({ error: toErrorMessage(error, "Curriculum lesson could not be loaded.") });
+    catch {
+        if (chapterId) {
+            const fallbackLessons = curriculum_data_1.completeCurriculumCourse.lessons.filter((lesson) => lesson.chapter_id === chapterId);
+            if (!fallbackLessons.length) {
+                return res.status(404).json({ error: "Chapter not found." });
+            }
+            return res.json(fallbackLessons);
+        }
+        const fallbackLesson = curriculum_data_1.completeCurriculumCourse.lessons.find((item) => item.lesson_id === requestedId) ?? null;
+        if (!fallbackLesson) {
+            return res.status(404).json({ error: "Lesson not found." });
+        }
+        return res.json(fallbackLesson);
     }
 });

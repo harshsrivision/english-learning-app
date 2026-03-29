@@ -28,7 +28,12 @@ function trimTrailingSlash(value) {
 }
 const defaultAllowedOrigins = [
     "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:4000",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "https://english-learning-app-beta-ten.vercel.app",
+    "https://english-learning-app-ajgl.vercel.app",
     "https://*.vercel.app",
     "https://*.up.railway.app",
     "https://*.onrender.com"
@@ -84,11 +89,15 @@ const corsOptions = {
 };
 app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json({ limit: "1mb" }));
+app.use((req, _res, next) => {
+    console.info(`${req.method} ${req.path}`);
+    next();
+});
 app.get("/", (_req, res) => {
     res.json({ status: "ok", service: "bolo-english-api" });
 });
 app.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "bolo-english-api" });
+    res.json({ status: "ok", service: "bolo-english-api", timestamp: new Date().toISOString() });
 });
 function getTodayDateKey() {
     return new Date().toISOString().split("T")[0];
@@ -699,8 +708,19 @@ async function bootstrap() {
             return res.status(500).json({ error: message });
         }
     });
-    app.get("/vocabulary", (_req, res) => {
-        return res.json(data_1.vocabularyTerms);
+    app.get("/vocabulary", async (_req, res) => {
+        try {
+            const vocabularyRows = await queryAll("SELECT id FROM vocabulary ORDER BY id ASC");
+            if (!vocabularyRows.length) {
+                return res.json(data_1.vocabularyTerms);
+            }
+            const availableIds = new Set(vocabularyRows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0));
+            const matchingTerms = data_1.vocabularyTerms.filter((term) => availableIds.has(term.id));
+            return res.json(matchingTerms.length ? matchingTerms : data_1.vocabularyTerms);
+        }
+        catch {
+            return res.json(data_1.vocabularyTerms);
+        }
     });
     app.post("/vocabulary-progress", async (req, res) => {
         const userId = parsePositiveInteger(req.body?.userId);
@@ -813,7 +833,7 @@ async function bootstrap() {
     };
     app.use(errorHandler);
     const server = app.listen(PORT, () => {
-        console.log(`Bolo English API listening on port ${PORT}`);
+        console.info(`Bolo English API listening on port ${PORT}`);
     });
     server.on("error", (error) => {
         const message = error.code === "EADDRINUSE"
