@@ -1,163 +1,196 @@
 ﻿"use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import { SectionHeading } from "@/components/section-heading";
-import { getCurrentCefrLevel, type LearnerProgress } from "@/lib/local-progress";
-import { useLearnerProgress } from "@/lib/use-learner-progress";
+import { learnerProgressChangedEvent, userSessionChangedEvent } from "@/lib/browser-events";
+import { getCurrentCefrLevel, readLearnerProgress, type LearnerProgress } from "@/lib/local-progress";
 
-type Badge = {
-  id: string;
-  mark: string;
-  name: string;
-  description: string;
-  hindiHint: string;
-  howToEarn: string;
+type AchievementExtraState = {
+  grammarPerfectCount: number;
+  weeklyChallengeComplete: boolean;
 };
 
-const allBadges: Badge[] = [
+type AchievementBadge = {
+  id: string;
+  emoji: string;
+  name: string;
+  howToEarn: string;
+  isEarned: (progress: LearnerProgress, extraState: AchievementExtraState) => boolean;
+};
+
+const earnedDateStorageKey = "bolo-earned-badge-dates";
+const lockedBadgeIcon = "\uD83D\uDD12";
+const achievementBadges: AchievementBadge[] = [
   {
-    id: "starter-spark",
-    mark: "SP",
-    name: "Starter Spark",
-    description: "Completed your first tracked lesson or daily milestone.",
-    hindiHint: "Pehla kadam sabse mushkil hota hai.",
-    howToEarn: "Complete your first lesson or first tracked study block."
-  },
-  {
-    id: "mic-friend",
-    mark: "MIC",
-    name: "Mic Friend",
-    description: "Logged your first meaningful speaking practice.",
-    hindiHint: "Mic khul gaya to confidence build hona start ho gaya.",
-    howToEarn: "Reach at least 5 minutes of total speaking practice."
-  },
-  {
-    id: "100-words",
-    mark: "100",
-    name: "100 Words",
-    description: "Learned your first 100 vocabulary words.",
-    hindiHint: "Vocabulary hi confidence ki neev hai.",
-    howToEarn: "Reach 100 vocabulary words."
-  },
-  {
-    id: "first-conversation",
-    mark: "CHAT",
-    name: "First Conversation",
-    description: "Completed your first AI roleplay or conversation simulation.",
-    hindiHint: "Baat shuru karni aani chahiye.",
-    howToEarn: "Complete any simulation scenario or roleplay."
+    id: "first-word",
+    emoji: "\uD83D\uDCD6",
+    name: "First Word",
+    howToEarn: "Complete your first tracked lesson or study block.",
+    isEarned: (progress) => progress.lessonsCompleted >= 1
   },
   {
     id: "3-day-streak",
-    mark: "3D",
+    emoji: "\uD83D\uDD25",
     name: "3-Day Streak",
-    description: "Practiced 3 days in a row.",
-    hindiHint: "Teen din ka streak adat banana start karta hai.",
-    howToEarn: "Practice on 3 consecutive days."
+    howToEarn: "Practice for 3 days in a row.",
+    isEarned: (progress) => progress.streakDays >= 3
   },
   {
     id: "week-warrior",
-    mark: "7D",
+    emoji: "\uD83C\uDFC6",
     name: "Week Warrior",
-    description: "Maintained a 7-day streak.",
-    hindiHint: "Ek poora hafta bina ruke jana badi baat hoti hai.",
-    howToEarn: "Maintain a 7-day streak."
-  },
-  {
-    id: "grammar-star",
-    mark: "GRAM",
-    name: "Grammar Star",
-    description: "Stayed consistent with grammar-focused practice.",
-    hindiHint: "Grammar stable ho to sentence aur natural lagta hai.",
-    howToEarn: "Log 5 strong grammar practice days in the weekly tracker."
-  },
-  {
-    id: "a1-graduate",
-    mark: "A1",
-    name: "A1 Graduate",
-    description: "Reached A1-level progress on the CEFR roadmap.",
-    hindiHint: "Ab basic se practical English ki taraf move ho rahe ho.",
-    howToEarn: "Earn enough XP to unlock A1."
-  },
-  {
-    id: "speaking-milestone",
-    mark: "10H",
-    name: "Speaking Milestone",
-    description: "Logged 10 hours of total speaking practice.",
-    hindiHint: "Itna bolne ke baad awaaz me confidence aa jata hai.",
-    howToEarn: "Log 600 minutes of total speaking practice."
+    howToEarn: "Practice for 7 days in a row.",
+    isEarned: (progress) => progress.streakDays >= 7
   },
   {
     id: "monthly-master",
-    mark: "30D",
+    emoji: "\uD83D\uDCC5",
     name: "Monthly Master",
-    description: "Maintained a 30-day streak.",
-    hindiHint: "Ek poora mahina consistency dikhana alag level hai.",
-    howToEarn: "Maintain a 30-day streak."
+    howToEarn: "Practice for 30 days in a row.",
+    isEarned: (progress) => progress.streakDays >= 30
+  },
+  {
+    id: "100-words",
+    emoji: "\uD83D\uDCDA",
+    name: "100 Words",
+    howToEarn: "Learn 100 vocabulary words.",
+    isEarned: (progress) => progress.vocabularyWords >= 100
+  },
+  {
+    id: "speaking-milestone",
+    emoji: "\uD83C\uDFA4",
+    name: "Speaking Milestone",
+    howToEarn: "Log 600 minutes of speaking practice.",
+    isEarned: (progress) => progress.speakingMinutes >= 600
+  },
+  {
+    id: "grammar-star",
+    emoji: "\u2B50",
+    name: "Grammar Star",
+    howToEarn: "Reach 5 perfect grammar completions.",
+    isEarned: (_progress, extraState) => extraState.grammarPerfectCount >= 5
+  },
+  {
+    id: "a1-graduate",
+    emoji: "\uD83C\uDF93",
+    name: "A1 Graduate",
+    howToEarn: "Reach 500 total XP.",
+    isEarned: (progress) => progress.totalXp >= 500
   },
   {
     id: "vocab-sprint-winner",
-    mark: "VOC",
+    emoji: "\uD83C\uDFC1",
     name: "Vocab Sprint Winner",
-    description: "Won the weekly vocabulary challenge.",
-    hindiHint: "Is hafte vocabulary me sabse tez growth dikh rahi hai.",
-    howToEarn: "Complete the 50-word weekly vocabulary sprint."
+    howToEarn: "Complete the weekly vocabulary challenge.",
+    isEarned: (progress, extraState) => extraState.weeklyChallengeComplete || progress.weeklyStats.vocabularyWords >= 50
   },
   {
     id: "c1-champion",
-    mark: "C1",
+    emoji: "\uD83D\uDC51",
     name: "C1 Champion",
-    description: "Reached C1 Advanced level.",
-    hindiHint: "Boardroom level fluency ab nazdeek nahi, unlock ho chuki hai.",
-    howToEarn: "Reach C1 level on the CEFR roadmap."
+    howToEarn: "Reach 10,000 total XP.",
+    isEarned: (progress) => progress.totalXp >= 10000
   }
 ];
 
-const badgeNameToId: Record<string, string> = {
-  "Starter Spark": "starter-spark",
-  "Mic Friend": "mic-friend",
-  "100 Words": "100-words",
-  "First Conversation": "first-conversation",
-  "3-Day Streak": "3-day-streak",
-  "Week Warrior": "week-warrior",
-  "Grammar Star": "grammar-star",
-  "A1 Graduate": "a1-graduate",
-  "Speaking Milestone": "speaking-milestone",
-  "Monthly Master": "monthly-master",
-  "Vocab Sprint Winner": "vocab-sprint-winner",
-  "C1 Champion": "c1-champion"
-};
+function readNumberFromStorage(key: string) {
+  const storedValue = window.localStorage.getItem(key);
+  const parsedValue = Number(storedValue ?? 0);
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
 
-function getEarnedBadgeIds(progress: LearnerProgress) {
-  const earned = new Set<string>();
+function readEarnedDateMap() {
+  try {
+    const storedValue = window.localStorage.getItem(earnedDateStorageKey);
 
-  for (const badgeName of progress.badges) {
-    const id = badgeNameToId[badgeName];
-    if (id) {
-      earned.add(id);
+    if (!storedValue) {
+      return {} as Record<string, string>;
     }
+
+    const parsedValue = JSON.parse(storedValue) as Record<string, string>;
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
+  } catch {
+    return {} as Record<string, string>;
+  }
+}
+
+function formatEarnedDate(value: string | undefined) {
+  if (!value) {
+    return "Today";
   }
 
-  if (progress.lessonsCompleted >= 1) earned.add("starter-spark");
-  if (progress.speakingMinutes >= 5) earned.add("mic-friend");
-  if (progress.vocabularyWords >= 100) earned.add("100-words");
-  if (progress.weeklyStats.roleplays >= 1) earned.add("first-conversation");
-  if (progress.streakDays >= 3) earned.add("3-day-streak");
-  if (progress.streakDays >= 7) earned.add("week-warrior");
-  if (progress.streakDays >= 30) earned.add("monthly-master");
-  if (progress.weeklyStats.vocabularyWords >= 50) earned.add("vocab-sprint-winner");
-  if (progress.weeklyStats.perfectGrammarDays >= 5) earned.add("grammar-star");
-  if (progress.speakingMinutes >= 600) earned.add("speaking-milestone");
-  if (progress.totalXp >= 180) earned.add("a1-graduate");
-  if (getCurrentCefrLevel(progress.totalXp) === "C1") earned.add("c1-champion");
+  const date = new Date(value);
 
-  return earned;
+  if (Number.isNaN(date.getTime())) {
+    return "Today";
+  }
+
+  return date.toLocaleDateString([], {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
 }
 
 export default function AchievementsPage() {
-  const { progress } = useLearnerProgress();
+  const [progress, setProgress] = useState<LearnerProgress | null>(null);
+  const [extraState, setExtraState] = useState<AchievementExtraState>({
+    grammarPerfectCount: 0,
+    weeklyChallengeComplete: false
+  });
+  const [earnedDates, setEarnedDates] = useState<Record<string, string>>({});
+  const [isReady, setIsReady] = useState(false);
 
-  if (!progress) {
+  useEffect(() => {
+    function syncAchievements() {
+      const nextProgress = readLearnerProgress();
+      const nextExtraState = {
+        grammarPerfectCount: Math.max(readNumberFromStorage("bolo-grammar-perfect"), nextProgress.weeklyStats.perfectGrammarDays),
+        weeklyChallengeComplete:
+          window.localStorage.getItem("bolo-weekly-challenge-complete") === "true" || nextProgress.weeklyStats.vocabularyWords >= 50
+      } satisfies AchievementExtraState;
+      const nextEarnedDates = readEarnedDateMap();
+      const now = new Date().toISOString();
+
+      for (const badge of achievementBadges) {
+        if (badge.isEarned(nextProgress, nextExtraState) && !nextEarnedDates[badge.id]) {
+          nextEarnedDates[badge.id] = nextProgress.lastActiveDate ? new Date(nextProgress.lastActiveDate).toISOString() : now;
+        }
+      }
+
+      window.localStorage.setItem(earnedDateStorageKey, JSON.stringify(nextEarnedDates));
+      setProgress(nextProgress);
+      setExtraState(nextExtraState);
+      setEarnedDates(nextEarnedDates);
+      setIsReady(true);
+    }
+
+    syncAchievements();
+    window.addEventListener("storage", syncAchievements);
+    window.addEventListener(learnerProgressChangedEvent, syncAchievements as EventListener);
+    window.addEventListener(userSessionChangedEvent, syncAchievements as EventListener);
+
+    return () => {
+      window.removeEventListener("storage", syncAchievements);
+      window.removeEventListener(learnerProgressChangedEvent, syncAchievements as EventListener);
+      window.removeEventListener(userSessionChangedEvent, syncAchievements as EventListener);
+    };
+  }, []);
+
+  const badgeStates = useMemo(() => {
+    if (!progress) {
+      return [];
+    }
+
+    return achievementBadges.map((badge) => ({
+      ...badge,
+      earned: badge.isEarned(progress, extraState),
+      earnedDate: earnedDates[badge.id]
+    }));
+  }, [earnedDates, extraState, progress]);
+
+  if (!isReady || !progress) {
     return (
       <main className="section-shell">
         <div className="surface-card p-6 text-sm text-stone">Achievements loading ho rahe hain...</div>
@@ -165,9 +198,8 @@ export default function AchievementsPage() {
     );
   }
 
-  const earnedIds = getEarnedBadgeIds(progress);
-  const earnedCount = earnedIds.size;
-  const progressPercent = allBadges.length ? Math.round((earnedCount / allBadges.length) * 100) : 0;
+  const earnedCount = badgeStates.filter((badge) => badge.earned).length;
+  const progressPercent = achievementBadges.length ? Math.round((earnedCount / achievementBadges.length) * 100) : 0;
   const currentLevel = getCurrentCefrLevel(progress.totalXp);
 
   return (
@@ -176,7 +208,7 @@ export default function AchievementsPage() {
         eyebrow="Achievements"
         title="Teri Mehnat Ka Badge Board"
         subtitle="Every badge here maps to real progress you have made"
-        description="Yahan tum dekh sakte ho ki kaunsi consistency, speaking, aur vocabulary milestones unlock ho chuki hain, aur next badge ke liye kya karna hai."
+        description="Yahan tum dekh sakte ho ki kaunsi streak, vocabulary, grammar, aur speaking milestones unlock ho chuki hain, aur next badge ke liye kya karna hai."
       />
 
       <section className="surface-card halo-panel p-6 sm:p-8">
@@ -184,23 +216,19 @@ export default function AchievementsPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Unlocked badges</p>
             <h2 className="mt-3 font-display text-3xl text-ink">
-              {earnedCount} / {allBadges.length}
+              {earnedCount} / {achievementBadges.length}
             </h2>
-            <p className="mt-2 text-sm text-stone">
-              {earnedCount === allBadges.length
-                ? "Sab milestones unlock ho chuke hain."
-                : `${allBadges.length - earnedCount} badges abhi baki hain.`}
-            </p>
+            <p className="mt-2 text-sm text-stone">{achievementBadges.length - earnedCount} badges abhi baki hain.</p>
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Total XP</p>
             <p className="mt-3 text-3xl font-bold text-ink">{progress.totalXp.toLocaleString()}</p>
-            <p className="mt-2 text-sm text-stone">All tracked progress from your local learner history.</p>
+            <p className="mt-2 text-sm text-stone">Saved directly from your learner progress.</p>
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-stone">Current level</p>
             <p className="mt-3 text-3xl font-bold text-ink">{currentLevel}</p>
-            <p className="mt-2 text-sm text-stone">Roadmap unlocks are driven by your saved XP.</p>
+            <p className="mt-2 text-sm text-stone">XP-based roadmap unlock.</p>
           </div>
         </div>
 
@@ -221,47 +249,29 @@ export default function AchievementsPage() {
       </section>
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        {allBadges.map((badge, index) => {
-          const isEarned = earnedIds.has(badge.id);
-
-          return (
-            <motion.article
-              key={badge.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.4, delay: index * 0.04 }}
-              className={`surface-card p-6 transition ${isEarned ? "border-forest/20" : "opacity-70"}`}
-              aria-label={`${badge.name} badge ${isEarned ? "earned" : "locked"}`}
-            >
-              <div className="flex items-start gap-4">
-                <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-sm font-bold tracking-[0.12em] ${
-                    isEarned ? "bg-forest-soft text-forest" : "bg-mist text-stone"
-                  }`}
-                >
-                  {isEarned ? badge.mark : "LOCK"}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display text-xl text-ink">{badge.name}</h3>
-                    {isEarned ? (
-                      <span className="rounded-full bg-forest/10 px-2 py-0.5 text-xs font-bold text-forest">Earned</span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm font-medium text-stone">{badge.hindiHint}</p>
-                </div>
+        {badgeStates.map((badge, index) => (
+          <motion.article
+            key={badge.id}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.4, delay: index * 0.04 }}
+            aria-label={`${badge.name} badge ${badge.earned ? "earned" : "locked"}`}
+            className={`surface-card p-6 ${badge.earned ? "border-forest/20" : "grayscale"}`}
+          >
+            <div className="flex items-start gap-4">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${badge.earned ? "bg-forest-soft" : "bg-mist"}`}>
+                {badge.earned ? badge.emoji : lockedBadgeIcon}
               </div>
-
-              <div className="mt-4 rounded-[1.3rem] bg-mist p-4">
-                <p className="text-sm leading-6 text-stone">{badge.description}</p>
-                {!isEarned ? (
-                  <p className="mt-2 text-xs font-semibold text-forest">How to earn: {badge.howToEarn}</p>
-                ) : null}
+              <div>
+                <h3 className="font-display text-xl text-ink">{badge.name}</h3>
+                <p className="mt-2 text-sm text-stone">
+                  {badge.earned ? `Earned on ${formatEarnedDate(badge.earnedDate)}` : `How to earn: ${badge.howToEarn}`}
+                </p>
               </div>
-            </motion.article>
-          );
-        })}
+            </div>
+          </motion.article>
+        ))}
       </section>
     </main>
   );

@@ -4,11 +4,10 @@ import Link from "next/link";
 import type { Route } from "next";
 import { motion } from "framer-motion";
 import { ArrowRight, KeyRound, Mail, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { buildSignupHref, defaultAuthenticatedPath, readRedirectPathFromLocation } from "@/lib/auth-navigation";
-import { apiFetchJson, toAuthApiErrorMessage } from "@/lib/api";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
 import { useUserSession } from "@/lib/use-user-session";
@@ -18,19 +17,37 @@ type LoginResponse = {
   error?: string;
 };
 
+const AUTH_NETWORK_ERROR_MESSAGE = "Server se connect nahi ho pa raha, thodi der mein try karo";
+const AUTH_INVALID_CREDENTIALS_MESSAGE = "Email ya password galat hai";
+const AUTH_GENERIC_ERROR_MESSAGE = "Kuch problem aayi, dobara try karo";
+
+function getAuthApiBaseUrl() {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "");
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const redirectTimeoutRef = useRef<number | null>(null);
   const { hasSession, isChecking } = useUserSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isChecking && hasSession) {
       router.replace(readRedirectPathFromLocation() as Route);
     }
   }, [hasSession, isChecking, router]);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current !== null) {
+        window.clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function openSignup(event: MouseEvent<HTMLAnchorElement>) {
     const redirectPath = readRedirectPathFromLocation();
@@ -54,23 +71,42 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
-      const data = await apiFetchJson<LoginResponse>("login", {
+      const response = await fetch(`${getAuthApiBaseUrl()}/login`, {
         method: "POST",
-        timeoutMs: 15000,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: nextEmail, password })
       });
+      const data = (await response.json().catch(() => null)) as LoginResponse | null;
 
-      if (typeof data.userId !== "number") {
-        throw new Error("Login failed.");
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError(AUTH_INVALID_CREDENTIALS_MESSAGE);
+        } else {
+          setError(AUTH_GENERIC_ERROR_MESSAGE);
+        }
+
+        return;
+      }
+
+      if (typeof data?.userId !== "number") {
+        throw new Error("Login response missing user ID.");
       }
 
       storeUserId(data.userId);
       activateLearnerProgress(data.userId);
-      router.replace(readRedirectPathFromLocation() as Route);
+      setSuccessMessage("Login successful");
+      redirectTimeoutRef.current = window.setTimeout(() => {
+        router.replace("/dashboard" as Route);
+      }, 900);
     } catch (requestError) {
-      setError(toAuthApiErrorMessage(requestError, "Login nahi ho paaya, dobara try karo."));
+      if (requestError instanceof TypeError || (requestError instanceof DOMException && requestError.name === "AbortError")) {
+        setError(AUTH_NETWORK_ERROR_MESSAGE);
+      } else {
+        setError(AUTH_GENERIC_ERROR_MESSAGE);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -178,6 +214,7 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {successMessage ? <p className="mt-4 rounded-2xl bg-forest-soft px-4 py-3 text-sm font-semibold text-forest">{successMessage}</p> : null}
           {error ? <p className="mt-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}
           <p className="mt-6 text-sm text-stone">
             Need an account?{" "}
@@ -190,4 +227,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

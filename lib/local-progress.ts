@@ -1,4 +1,4 @@
-﻿import { dailyPlanBlocks, roadmapLevels, weeklyChallenges, type CefrLevel, type DailyPlanBlock, type WeeklyChallenge } from "@/lib/app-data";
+import { dailyPlanBlocks, roadmapLevels, weeklyChallenges, type CefrLevel, type DailyPlanBlock, type WeeklyChallenge } from "@/lib/app-data";
 import { dispatchLearnerProgressChanged } from "@/lib/browser-events";
 import { getStoredUserId } from "@/lib/user-session";
 
@@ -459,5 +459,6 @@ export function getProgressClass(percent: number) {
 export function formatSpeakingHours(minutes: number) {
   return `${(minutes / 60).toFixed(1)} hrs`;
 }
+
 
 

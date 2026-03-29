@@ -59,12 +59,11 @@ export function RoadmapPageClient() {
         <div className="overflow-x-auto pb-4">
           <div className="flex min-w-max items-start gap-4">
             {roadmapLevels.map((level, index) => {
-              const unlocked = index <= currentLevelIndex;
-              const active = level.level === currentLevel;
+              const status = index < currentLevelIndex ? "completed" : index === currentLevelIndex ? "current" : "future";
 
               return (
                 <div key={level.level} className="flex items-start gap-4">
-                  <RoadmapLevelCard level={level} unlocked={unlocked} active={active} />
+                  <RoadmapLevelCard level={level} status={status} />
                   {index < roadmapLevels.length - 1 ? (
                     <div className="flex h-full items-center pt-28 text-forest">
                       <ArrowRight className="h-6 w-6" />
@@ -79,16 +78,14 @@ export function RoadmapPageClient() {
 
       <section className="space-y-4 lg:hidden">
         {roadmapLevels.map((level, index) => {
-          const unlocked = index <= currentLevelIndex;
-          const active = level.level === currentLevel;
+          const status = index < currentLevelIndex ? "completed" : index === currentLevelIndex ? "current" : "future";
           const expanded = openLevel === level.level;
 
           return (
             <RoadmapLevelCard
               key={level.level}
               level={level}
-              unlocked={unlocked}
-              active={active}
+              status={status}
               mobile
               expanded={expanded}
               onToggle={() => {

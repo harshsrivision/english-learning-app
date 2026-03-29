@@ -5,7 +5,6 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeading } from "@/components/section-heading";
-import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
 import { buildSignupHref } from "@/lib/auth-navigation";
 import type { CurriculumLevelSummary } from "@/lib/curriculum";
 import {
@@ -20,6 +19,10 @@ import {
 } from "@/lib/curriculum-lessons";
 import { getProgressWidthClass } from "@/lib/learning";
 import { useUserSession } from "@/lib/use-user-session";
+
+function getLessonsApiBaseUrl() {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "");
+}
 
 export function LessonsHub() {
   const { userId, hasSession, isChecking } = useUserSession();
@@ -40,14 +43,20 @@ export function LessonsHub() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await apiFetchJson<CurriculumLevelSummary[]>("/api/curriculum/levels", { timeoutMs: 20000 });
+        const response = await fetch(`${getLessonsApiBaseUrl()}/api/curriculum/levels`);
+
+        if (!response.ok) {
+          throw new Error("Failed to load levels");
+        }
+
+        const data = (await response.json().catch(() => [])) as CurriculumLevelSummary[];
 
         if (!ignore) {
-          setLevels(data);
+          setLevels(Array.isArray(data) ? data : []);
         }
-      } catch (requestError) {
+      } catch {
         if (!ignore) {
-          setError(toApiErrorMessage(requestError, "Lessons abhi load nahi ho pa rahe."));
+          setError("Lessons load nahi ho paaye — dobara try karo");
         }
       } finally {
         if (!ignore) {
@@ -113,7 +122,6 @@ export function LessonsHub() {
       ) : null}
 
       {error ? <p className="rounded-[1.5rem] bg-red-50 px-5 py-4 text-sm text-red-800">{error}</p> : null}
-
       {isLoading ? <div className="surface-card p-6 text-sm text-stone">Levels load ho rahe hain...</div> : null}
 
       {!isLoading ? (

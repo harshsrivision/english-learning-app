@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
-import { BookOpen, Map, Mic2, Trophy } from "lucide-react";
+import { BookOpen, Instagram, Mail, Map, Mic2, Trophy } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,7 +14,8 @@ const footerColumns = [
     links: [
       { href: "/", label: "Home" },
       { href: "/roadmap", label: "Roadmap" },
-      { href: "/dashboard", label: "Dashboard" }
+      { href: "/privacy", label: "Privacy Policy" },
+      { href: "/terms", label: "Terms of Service" }
     ]
   },
   {
@@ -58,10 +59,10 @@ function resolveFooterHref(href: string, loginHref: Route) {
   return href === "/login" ? loginHref : (href as Route);
 }
 
-
 export function SiteFooter() {
   const pathname = usePathname();
   const loginHref = buildLoginHref(pathname === "/" ? defaultAuthenticatedPath : pathname);
+
   return (
     <footer className="border-t border-ink/10 bg-white/95">
       <motion.div
@@ -89,6 +90,30 @@ export function SiteFooter() {
           ))}
         </div>
 
+        <section className="rounded-[1.8rem] border border-ink/10 bg-mist p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-forest">Contact Us</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="flex items-start gap-3 text-sm text-stone">
+              <Mail className="mt-0.5 h-4 w-4 text-forest" />
+              <div>
+                <p className="font-semibold text-ink">Email</p>
+                <p>hello@boloenglish.in</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 text-sm text-stone">
+              <Instagram className="mt-0.5 h-4 w-4 text-forest" />
+              <div>
+                <p className="font-semibold text-ink">Instagram</p>
+                <p>@boloenglish</p>
+              </div>
+            </div>
+            <div className="text-sm text-stone">
+              <p className="font-semibold text-ink">Made with {"\u2764\uFE0F"} in Lucknow, India</p>
+              <p className="mt-1">Hindi speakers ke liye proudly built.</p>
+            </div>
+          </div>
+        </section>
+
         <div className="flex flex-col gap-4 border-t border-ink/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-stone">Built for Hindi speakers. Made in India.</p>
           <div className="flex flex-wrap items-center gap-3">
@@ -112,7 +137,4 @@ export function SiteFooter() {
     </footer>
   );
 }
-
-
-
 

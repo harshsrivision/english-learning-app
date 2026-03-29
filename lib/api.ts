@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 const endpointPaths = {
   analyze: "/analyze",
@@ -11,6 +11,7 @@ const endpointPaths = {
   curriculumStructure: "/api/curriculum/structure",
   curriculumSystems: "/api/curriculum/systems",
   dailyProgress: "/daily-progress",
+  health: "/health",
   lessonProgress: "/lesson-progress",
   lessonUnlocks: "/lesson-unlocks",
   lessons: "/lessons",
@@ -23,6 +24,7 @@ const endpointPaths = {
 } as const;
 
 const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_API_BASE_URL = "http://localhost:4000";
 const BACKEND_TIMEOUT_MESSAGE = "The Bolo English backend took too long to respond. It may still be starting up.";
 const BACKEND_CONNECTION_MESSAGE =
   "Could not reach the Bolo English backend. Check NEXT_PUBLIC_API_BASE_URL, backend CORS, or that the local API is running on port 4000.";
@@ -42,24 +44,6 @@ function trimTrailingSlash(value: string) {
 
 function trimApiSuffix(value: string) {
   return value.replace(/\/api$/i, "");
-}
-
-function isLocalHostname(hostname: string) {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
-}
-
-function getFallbackApiBaseUrl() {
-  if (typeof window === "undefined") {
-    return "http://127.0.0.1:4000";
-  }
-
-  const { protocol, hostname, origin } = window.location;
-
-  if (isLocalHostname(hostname)) {
-    return `${protocol}//${hostname}:4000`;
-  }
-
-  return origin;
 }
 
 function isApiEndpointKey(value: string): value is ApiEndpointKey {
@@ -111,7 +95,7 @@ export class ApiRequestError extends Error {
 export function getApiBaseUrl() {
   const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
-  return trimApiSuffix(trimTrailingSlash(configuredBaseUrl || getFallbackApiBaseUrl()));
+  return trimApiSuffix(trimTrailingSlash(configuredBaseUrl || DEFAULT_API_BASE_URL));
 }
 
 function resolveApiUrl(endpoint: ApiEndpointKey | string) {
@@ -129,6 +113,18 @@ function resolveApiUrl(endpoint: ApiEndpointKey | string) {
 
 export function getApiUrl(endpoint: ApiEndpointKey) {
   return resolveApiUrl(endpoint);
+}
+
+export async function checkBackendHealth() {
+  try {
+    const response = await fetch(getApiUrl("health"), {
+      signal: AbortSignal.timeout(5000)
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function toApiErrorMessage(error: unknown, fallback: string) {
@@ -223,6 +219,3 @@ export async function correctSentence(sentence: string) {
     body: JSON.stringify({ sentence })
   });
 }
-
-
-

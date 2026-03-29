@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { KeyRound, Mail, UserRound } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { apiFetchJson, toAuthApiErrorMessage } from "@/lib/api";
-import { readRedirectPathFromLocation } from "@/lib/auth-navigation";
 import { activateLearnerProgress } from "@/lib/local-progress";
 import { storeUserId } from "@/lib/user-session";
 
@@ -15,13 +13,31 @@ type CreateUserResponse = {
   error?: string;
 };
 
+const AUTH_NETWORK_ERROR_MESSAGE = "Server se connect nahi ho pa raha, thodi der mein try karo";
+const AUTH_EMAIL_EXISTS_MESSAGE = "Yeh email pehle se registered hai";
+const AUTH_GENERIC_ERROR_MESSAGE = "Kuch problem aayi, dobara try karo";
+
+function getAuthApiBaseUrl() {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "");
+}
+
 export function DashboardAccountForm() {
   const router = useRouter();
+  const redirectTimeoutRef = useRef<number | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current !== null) {
+        window.clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   async function createUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,27 +51,42 @@ export function DashboardAccountForm() {
 
     setIsSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
-      const data = await apiFetchJson<CreateUserResponse>("signup", {
+      const response = await fetch(`${getAuthApiBaseUrl()}/signup`, {
         method: "POST",
-        timeoutMs: 15000,
-        body: JSON.stringify({
-          name: nextName,
-          email: nextEmail,
-          password
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName, email: nextEmail, password })
       });
+      const data = (await response.json().catch(() => null)) as CreateUserResponse | null;
 
-      if (typeof data.userId !== "number") {
-        throw new Error("User creation failed.");
+      if (!response.ok) {
+        if (response.status === 409) {
+          setError(AUTH_EMAIL_EXISTS_MESSAGE);
+        } else {
+          setError(AUTH_GENERIC_ERROR_MESSAGE);
+        }
+
+        return;
+      }
+
+      if (typeof data?.userId !== "number") {
+        throw new Error("Signup response missing user ID.");
       }
 
       storeUserId(data.userId);
       activateLearnerProgress(data.userId);
-      router.replace(readRedirectPathFromLocation() as Route);
+      setSuccessMessage("Account ban gaya! Dashboard khul raha hai...");
+      redirectTimeoutRef.current = window.setTimeout(() => {
+        router.replace("/dashboard" as Route);
+      }, 900);
     } catch (requestError) {
-      setError(toAuthApiErrorMessage(requestError, "Signup nahi ho paaya, dobara try karo."));
+      if (requestError instanceof TypeError || (requestError instanceof DOMException && requestError.name === "AbortError")) {
+        setError(AUTH_NETWORK_ERROR_MESSAGE);
+      } else {
+        setError(AUTH_GENERIC_ERROR_MESSAGE);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -128,6 +159,7 @@ export function DashboardAccountForm() {
         </button>
       </form>
 
+      {successMessage ? <p className="mt-4 rounded-2xl bg-forest-soft px-4 py-3 text-sm font-semibold text-forest">{successMessage}</p> : null}
       {error ? <p className="mt-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p> : null}
     </div>
   );

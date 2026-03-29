@@ -1,4 +1,4 @@
-﻿export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
+export type CefrLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1";
 
 export type HomeStep = {
   id: string;
@@ -522,7 +522,7 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     hindiSubtitle: "Agar... toh... wale sentences",
     level: "B1",
     duration: "20 min",
-    hook: "If I study, I will pass â€” yeh pattern B1 se zaroor seekho.",
+    hook: "If I study, I will pass — yeh pattern B1 se zaroor seekho.",
     description: "0, 1st, 2nd conditional with real office and life examples.",
     lessonId: 21
   },
@@ -552,10 +552,11 @@ export const grammarTopicCards: GrammarTopicCardData[] = [
     hindiSubtitle: "Ideas ko jodne wale phrases",
     level: "B1",
     duration: "15 min",
-    hook: "However, therefore, in addition â€” presentations ke liye essential.",
+    hook: "However, therefore, in addition — presentations ke liye essential.",
     description: "Make your English flow naturally from one idea to the next.",
     lessonId: 17
   }
 ];
+
 
 

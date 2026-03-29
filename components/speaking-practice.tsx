@@ -129,7 +129,7 @@ const practiceScenarios = [
 ] as const satisfies ReadonlyArray<PracticeScenario>;
 
 const fillerWords = new Set(["um", "uh", "like", "actually", "basically"]);
-const AI_BUSY_MESSAGE = "AI abhi busy hai, dobara try karo";
+const AI_BUSY_MESSAGE = "AI abhi busy hai ? thodi der mein try karo";
 const PROGRESS_SAVE_MESSAGE = "Progress save nahi ho paaya, phir se try karo.";
 
 type SpeakingPracticeProps = {
@@ -198,6 +198,10 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
   const scenario = practiceScenarios[selectedScenarioIndex];
   const localFeedback = buildFeedback(transcript);
+  const pronunciationScoreOutOfTen =
+    pronunciationScore === null
+      ? null
+      : Math.max(0, Math.min(10, pronunciationScore > 10 ? Math.round(pronunciationScore / 10) : Math.round(pronunciationScore)));
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -797,20 +801,20 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
 
         <div className="mt-6 rounded-3xl bg-white/5 p-5">
           <p className="text-sm font-semibold text-gold">Pronunciation Score</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{pronunciationScore ?? 0}/100</p>
+          <p className="mt-3 text-3xl font-semibold text-white">{pronunciationScoreOutOfTen ?? 0}/10</p>
         </div>
 
         <div className="mt-6 rounded-3xl bg-white/5 p-5">
-          <p className="text-sm font-semibold text-gold">Feedback</p>
+          <p className="text-sm font-semibold text-gold">Pronunciation feedback</p>
           <p className="mt-3 text-sm leading-6 text-white/80">
             {pronunciationFeedback || "Speak a sentence and run analysis to see pronunciation feedback."}
           </p>
         </div>
 
-        <div className="mt-6 rounded-3xl bg-white/5 p-5">
-          <p className="text-sm font-semibold text-gold">AI feedback</p>
-          <p className="mt-3 text-sm leading-6 text-white/80">
-            {feedback || "Record or type a sentence, then run analysis to see the AI correction feedback."}
+        <div className="mt-6 rounded-3xl border border-forest/20 bg-forest-soft p-5 text-forest">
+          <p className="text-sm font-semibold">Correction</p>
+          <p className="mt-3 text-sm leading-6">
+            {feedback ? `Correction: ${feedback}` : "Correction: Record or type a sentence, then run analysis to see the corrected version."}
           </p>
         </div>
 
@@ -822,7 +826,7 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
         </div>
 
         <div className="mt-6 rounded-3xl bg-white/5 p-5">
-          <p className="text-sm font-semibold text-gold">Sentence coach</p>
+          <p className="text-sm font-semibold text-gold">Sentence analysis</p>
           <div className="mt-3 space-y-4 text-sm leading-6 text-white/80">
             <div>
               <p className="font-semibold text-white">Correct sentence</p>
@@ -905,3 +909,4 @@ export function SpeakingPractice({ userId }: SpeakingPracticeProps) {
     </div>
   );
 }
+

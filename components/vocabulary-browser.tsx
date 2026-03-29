@@ -2,9 +2,11 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { apiFetchJson, toApiErrorMessage } from "@/lib/api";
+import { foundationVocabularyTerms } from "@/server/vocabulary-foundation";
+import { advancedVocabularyTerms } from "@/server/vocabulary-advanced";
+import { apiFetchJson } from "@/lib/api";
 import { readLearnedWordIds, writeLearnedWordIds } from "@/lib/guest-learning-progress";
-import { readLearnerProgress } from "@/lib/local-progress";
+import { readLearnerProgress, recordLearnerProgress } from "@/lib/local-progress";
 import { getLevelBadgeClasses, getProgressWidthClass, type CefrLevel, type VocabularyCategory, type VocabularyTerm } from "@/lib/learning";
 import { useUserSession } from "@/lib/use-user-session";
 
@@ -22,9 +24,14 @@ const categoryFilters: Array<"All" | VocabularyCategory> = [
   "Leadership",
   "Social"
 ];
+const fallbackVocabularyWords = [...foundationVocabularyTerms, ...advancedVocabularyTerms].slice(0, 100) as VocabularyTerm[];
 
 function getCategoryBadgeClass() {
   return "rounded-full bg-forest-soft px-3 py-1 text-xs font-semibold text-forest";
+}
+
+function getVocabularyApiBaseUrl() {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 }
 
 export function VocabularyBrowser() {
@@ -51,14 +58,22 @@ export function VocabularyBrowser() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await apiFetchJson<VocabularyTerm[]>("vocabulary", { timeoutMs: 20000 });
+        const response = await fetch(`${getVocabularyApiBaseUrl()}/vocabulary`);
+
+        if (!response.ok) {
+          throw new Error("Failed to load vocabulary");
+        }
+
+        const data = (await response.json().catch(() => [])) as VocabularyTerm[];
+        const nextWords = Array.isArray(data) && data.length ? data.slice(0, 100) : fallbackVocabularyWords;
 
         if (!ignore) {
-          setWords(data.slice(0, 100));
+          setWords(nextWords);
         }
-      } catch (requestError) {
+      } catch {
         if (!ignore) {
-          setError(toApiErrorMessage(requestError, "Vocabulary words abhi load nahi ho pa rahe."));
+          setWords(fallbackVocabularyWords);
+          setError("Vocabulary offline mode mein dikhayi ja rahi hai — backend se connect nahi ho pa raha.");
         }
       } finally {
         if (!ignore) {
@@ -79,13 +94,16 @@ export function VocabularyBrowser() {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return words.filter((word) => {
+      const english = word.english ?? "";
+      const hindi = word.hindi ?? "";
+      const hindiPronunciation = word.hindiPronunciation ?? "";
       const matchesLevel = activeLevel === "All" || word.cefrLevel === activeLevel;
       const matchesCategory = activeCategory === "All" || word.category === activeCategory;
       const matchesQuery =
         !normalizedQuery ||
-        word.english.toLowerCase().includes(normalizedQuery) ||
-        word.hindi.toLowerCase().includes(normalizedQuery) ||
-        word.hindiPronunciation.toLowerCase().includes(normalizedQuery);
+        english.toLowerCase().includes(normalizedQuery) ||
+        hindi.toLowerCase().includes(normalizedQuery) ||
+        hindiPronunciation.toLowerCase().includes(normalizedQuery);
 
       return matchesLevel && matchesCategory && matchesQuery;
     });
@@ -101,6 +119,15 @@ export function VocabularyBrowser() {
     setLearnedWordIds(nextWordIds);
     writeLearnedWordIds(nextWordIds);
 
+    if (!isLearned) {
+      recordLearnerProgress({
+        xp: 4,
+        vocabularyWords: 1,
+        streakActivity: true,
+        weeklyStats: { vocabularyWords: 1 }
+      });
+    }
+
     if (!isLearned && userId) {
       try {
         await apiFetchJson<{ success?: boolean }>("vocabularyProgress", {
@@ -109,7 +136,7 @@ export function VocabularyBrowser() {
           body: JSON.stringify({ userId, wordId })
         });
       } catch {
-        // Local learned state should still stay responsive even if backend sync misses.
+        // Local learned state stays responsive even if backend sync misses.
       }
     }
   }
@@ -224,25 +251,25 @@ export function VocabularyBrowser() {
                   >
                     <p className="mt-4 font-display text-3xl text-ink">{word.english}</p>
                     <p className="mt-2 text-base font-semibold text-forest">{word.hindi}</p>
-                    <p className="mt-1 text-xs italic text-stone">{word.hindiPronunciation}</p>
+                    <p className="mt-1 text-xs italic text-stone">{word.hindiPronunciation ?? ""}</p>
                   </button>
 
                   {isExpanded ? (
                     <div className="mt-5 space-y-4">
                       <div className="rounded-[1.5rem] bg-gold/10 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">MEMORY TIP</p>
-                        <p className="mt-2 text-sm leading-7 text-stone">{word.memoryTip}</p>
+                        <p className="mt-2 text-sm leading-7 text-stone">{word.memoryTip ?? ""}</p>
                       </div>
 
                       <div className="rounded-r-2xl border-l-4 border-forest bg-mist px-5 py-4">
                         <p className="text-sm font-semibold text-ink">{word.usage}</p>
-                        <p className="mt-1 text-xs text-stone">{word.hindiUsage}</p>
+                        <p className="mt-1 text-xs text-stone">{word.hindiUsage ?? ""}</p>
                       </div>
 
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone">Kab bolte hain?</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {word.useCases.map((useCase) => (
+                          {(word.useCases ?? []).map((useCase) => (
                             <span key={useCase} className="rounded-full border border-ink/10 bg-mist px-3 py-1 text-xs text-stone">
                               {useCase}
                             </span>
@@ -253,7 +280,7 @@ export function VocabularyBrowser() {
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone">Similar words</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {word.synonyms.map((synonym) => (
+                          {(word.synonyms ?? []).map((synonym) => (
                             <span key={synonym} className="rounded-full bg-sky px-3 py-1 text-xs font-semibold text-blue-700">
                               {synonym}
                             </span>
@@ -287,3 +314,5 @@ export function VocabularyBrowser() {
     </main>
   );
 }
+
+

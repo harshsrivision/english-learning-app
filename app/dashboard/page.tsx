@@ -15,6 +15,8 @@ import {
   Trophy,
   Zap
 } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
 import { DailyPlanCard } from "@/components/daily-plan-card";
 import { DashboardTopBar } from "@/components/dashboard-top-bar";
 import { ProgressStatCard } from "@/components/progress-stat-card";
@@ -43,6 +45,17 @@ const blockIcons = {
   roleplay: Bot,
   quiz: CheckCircle2
 } as const;
+
+const blockRoutes: Record<string, Route> = {
+  "warm-up": "/lessons",
+  vocabulary: "/vocabulary",
+  grammar: "/grammar",
+  listening: "/lessons",
+  reading: "/lessons",
+  speaking: "/speaking",
+  roleplay: "/conversation",
+  quiz: "/lessons"
+};
 
 export default function DashboardPage() {
   const { progress, setProgress } = useLearnerProgress();
@@ -106,6 +119,7 @@ export default function DashboardPage() {
                   description={block.description}
                   xp={block.xp}
                   checked={completedToday.has(block.id)}
+                  href={blockRoutes[block.id] ?? ("/dashboard" as Route)}
                   icon={Icon}
                   onToggle={() => handleToggleBlock(block)}
                 />
@@ -145,20 +159,32 @@ export default function DashboardPage() {
           </section>
 
           <section className="surface-card p-6 sm:p-8">
-            <div>
-              <h2 className="font-display text-3xl text-ink">Unlocked Badges</h2>
-              <p className="mt-2 text-base font-medium text-stone">Jo consistency dikh rahi hai, uska reward yahan milega</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-3xl text-ink">Unlocked Badges</h2>
+                <p className="mt-2 text-base font-medium text-stone">Jo consistency dikh rahi hai, uska reward yahan milega</p>
+              </div>
+              <Link href="/achievements" aria-label="Open achievements page" className="text-sm font-semibold text-forest hover:text-forest-dark">
+                View all
+              </Link>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
               {progress.badges.length ? (
                 progress.badges.map((badge) => (
-                  <span key={badge} className="inline-flex items-center gap-2 rounded-full bg-forest-soft px-4 py-2 text-sm font-semibold text-forest">
+                  <Link
+                    key={badge}
+                    href="/achievements"
+                    aria-label={`Open achievements page for ${badge}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-forest-soft px-4 py-2 text-sm font-semibold text-forest"
+                  >
                     <Medal className="h-4 w-4" />
                     {badge}
-                  </span>
+                  </Link>
                 ))
               ) : (
-                <p className="text-sm text-stone">Complete a lesson, speaking drill, or streak milestone to unlock your first badge.</p>
+                <Link href="/achievements" aria-label="Open achievements page" className="text-sm text-stone hover:text-forest">
+                  Complete a lesson, speaking drill, or streak milestone to unlock your first badge.
+                </Link>
               )}
             </div>
           </section>
@@ -181,3 +207,5 @@ export default function DashboardPage() {
     </main>
   );
 }
+
+

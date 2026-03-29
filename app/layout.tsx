@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_Devanagari, Sora } from "next/font/google";
 import "./globals.css";
+import { BackendStatusBanner } from "@/components/backend-status-banner";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -91,6 +92,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-mist text-ink antialiased">
         <div className="flex min-h-screen flex-col">
           <Navbar />
+          <div className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
+            <BackendStatusBanner />
+          </div>
           <div className="flex-1">{children}</div>
           <SiteFooter />
         </div>
